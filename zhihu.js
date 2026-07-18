@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         知乎极简宽屏·液态玻璃顶栏·主题切换
-// @namespace    https://github.com/yourname/zhihu-toolkit
-// @version      3.1
+// @namespace    https://github.com/wsyqn6/userscripts
+// @version      1.2
 // @description  宽屏布局、玻璃顶栏、6种护眼主题、优化可读性
-// @author       YourName
+// @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
 // @grant        none
@@ -13,7 +13,7 @@
 (function() {
 'use strict';
 
-// ==================== 配置 ====================
+// ==================== 配置常量 ====================
 const C = {
     MAX_CACHE: 100, HEADER_HIDE: 100, HEADER_SHOW: 160, THROTTLE: 100,
     DEBOUNCE: 300, URL_DELAY: 500, SCROLL_DELAY: 800, ROOT_MARGIN: '200px',
@@ -36,17 +36,25 @@ const C = {
 
 let currentTheme = 'light';
 
-// ==================== CSS ====================
+// ==================== CSS 样式 ====================
 const CSS = `
-.Topstory-mainColumn,.Question-mainColumn,.SearchMain,.ContentLayout-mainColumn,.Profile-mainColumn,.CollectionsDetailPage-mainColumn{width:calc(100% - 40px)!important;max-width:1400px!important;margin:0 auto!important;float:none!important}
+/* 主列宽屏 */
+.Topstory-mainColumn,.Question-mainColumn,.SearchMain,.ContentLayout-mainColumn,.Profile-mainColumn,.CollectionsDetailPage-mainColumn,.QuestionPage{width:calc(100% - 40px)!important;max-width:1400px!important;margin:0 auto!important;float:none!important}
+/* 隐藏侧边栏及广告区域 */
 .Topstory-sideColumn,.Question-sideColumn,.ContentLayout-sideColumn,.Profile-sideColumn,.GlobalSideBar,[data-za-detail-view-path-module="RightSideBar"],.Card.QuestionHeaderTopicMeta,.Post-Row-Content-right,.Pc-Business-Card-PcTopFeedBanner,.WriteArea{display:none!important}
+/* 容器宽屏 */
 .Topstory-container,.Question-main,.Search-container,.ContentLayout,.CollectionsDetailPage,.Post-Row-Content-left{width:100%!important;max-width:1400px!important;margin:0 auto!important}
 .Post-Row-Content-left{max-width:1000px!important}
+/* 回答项宽屏 */
+.List-item,.AnswerItem{width:100%!important;max-width:1400px!important;margin:0 auto!important}
+/* 玻璃顶栏 */
 .AppHeader{position:fixed!important;top:0!important;left:0!important;right:0!important;background:var(--h)!important;box-shadow:0 1px 3px rgba(0,0,0,0.08)!important;border-bottom:1px solid var(--bd)!important;transition:transform 0.35s cubic-bezier(0.4,0,0.2,1)!important;z-index:1000!important}
 html[data-theme="dark"] .AppHeader{box-shadow:0 1px 3px rgba(0,0,0,0.25)!important}
 .AppHeader.header--hidden{transform:translate3d(0,-100%,0)!important}
+/* 页面基础样式 */
 body{padding-top:52px!important;background-color:var(--bg)!important}
 .Post-content{margin-top:0!important}
+/* 内容可读性优化 */
 .RichContent-inner{color:var(--tx)!important;line-height:1.75!important}
 .RichContent-inner h1,.RichContent-inner h2,.RichContent-inner h3,.RichContent-inner h4{color:var(--ti)!important;line-height:1.5!important}
 .RichContent-inner strong{color:var(--ti)!important}
@@ -54,9 +62,13 @@ body{padding-top:52px!important;background-color:var(--bg)!important}
 .RichContent-inner a:hover{border-bottom-color:var(--lk)!important}
 ::selection{background:var(--hl)!important}
 .Post-Title,.QuestionTitle{color:var(--ti)!important}
+/* 卡片样式 */
 .Card,.List-item,.AnswerItem,.ContentItem{background-color:var(--cd)!important;border-color:var(--bd)!important;transition:background-color 0.3s ease,border-color 0.3s ease!important}
+/* 自定义发布时间 */
 .custom-publish-time{font-size:13px;color:var(--ac)!important;margin-top:4px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid var(--bd)!important;display:block;clear:both}
+/* 文章标签 */
 .article-tag{display:inline-block;margin-left:8px;padding:1px 6px;font-size:11px;font-weight:500;color:var(--lk)!important;background:var(--hl)!important;border-radius:3px;vertical-align:middle}
+/* 主题切换器 */
 .theme-switcher{position:fixed!important;right:20px!important;bottom:100px!important;z-index:9999!important;display:flex!important;flex-direction:column!important;align-items:flex-end!important}
 .theme-switcher-btn{width:48px!important;height:48px!important;border-radius:50%!important;background:var(--cd)!important;border:2px solid var(--bd)!important;box-shadow:0 4px 16px rgba(0,0,0,0.12)!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:20px!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important;color:var(--tx)!important}
 .theme-switcher-btn:hover{transform:scale(1.08) rotate(15deg)!important;box-shadow:0 6px 20px rgba(0,0,0,0.18)!important}
@@ -72,10 +84,10 @@ body{padding-top:52px!important;background-color:var(--bg)!important}
 .theme-preview{width:20px!important;height:20px!important;border-radius:6px!important;margin-right:12px!important;border:2px solid rgba(0,0,0,0.08)!important;flex-shrink:0!important;transition:transform 0.2s ease!important}
 .theme-switcher-item:hover .theme-preview{transform:scale(1.15)!important}
 .theme-switcher-menu::after{content:''!important;position:absolute!important;right:18px!important;bottom:-7px!important;width:12px!important;height:12px!important;background:var(--cd)!important;border-right:1px solid var(--bd)!important;border-bottom:1px solid var(--bd)!important;transform:rotate(45deg)!important;box-shadow:2px 2px 4px rgba(0,0,0,0.05)!important}
+/* 图片样式 */
 .RichContent-inner img,.Post-RichText img,.AnswerCard img{max-width:70%!important;height:auto!important;border-radius:8px!important}
 `;
 
-// ==================== 常量 ====================
 const STORAGE_KEY = 'zhihu-theme';
 const THEME_MENU_CLASS = 'theme-switcher';
 const ADS_DATA_ATTR = 'adBlocked';
@@ -83,14 +95,13 @@ const ADS_DATA_ATTR = 'adBlocked';
 // ==================== 工具函数 ====================
 const timeCache = new Map();
 const cacheOrder = [];
-const MAX_CACHE = 100;
 
 const formatTime = t => {
     if (!t) return '';
     if (timeCache.has(t)) return timeCache.get(t);
     const d = new Date(/^\d+$/.test(t) ? parseInt(t) * 1000 : t);
     const r = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    if (cacheOrder.length >= MAX_CACHE) {
+    if (cacheOrder.length >= C.MAX_CACHE) {
         const oldest = cacheOrder.shift();
         timeCache.delete(oldest);
     }
@@ -118,7 +129,7 @@ const throttle = (fn, delay) => {
     };
 };
 
-// ==================== 主题功能 ====================
+// ==================== 主题切换 ====================
 const setTheme = k => {
     if (!C.THEMES[k]) return;
     currentTheme = k;
@@ -160,15 +171,18 @@ const createThemeMenu = () => {
     document.addEventListener('click', e => { if (!container.contains(e.target)) menu.classList.remove('show'); });
 };
 
-// ==================== 顶栏滚动 ====================
+// ==================== 顶栏滚动隐藏 ====================
 const initHeaderScrollHide = () => {
     const header = document.querySelector('.AppHeader');
     if (!header) return;
     let lastY = window.scrollY, isHidden = false, upDist = 0;
     const update = throttle(() => {
         const cy = window.scrollY, delta = lastY - cy;
+        // 向下滚动且超过阈值时隐藏顶栏
         if (cy > lastY && cy > C.HEADER_HIDE && !isHidden) { header.classList.add('header--hidden'); isHidden = true; upDist = 0; }
+        // 向上滚动累计达到阈值时显示顶栏
         else if (delta > 0 && isHidden) { upDist += delta; if (upDist >= C.HEADER_SHOW) { header.classList.remove('header--hidden'); isHidden = false; upDist = 0; } }
+        // 继续向下滚动时重置向上距离
         else if (delta <= 0 && isHidden) upDist = 0;
         lastY = cy;
     }, C.THROTTLE);
@@ -177,12 +191,17 @@ const initHeaderScrollHide = () => {
 
 // ==================== 发布时间 ====================
 const processTimeInfo = item => {
+    // 跳过已处理的项目
     if (item.querySelector('.custom-publish-time')) return;
+    // 关键修复：问题详情页中 .List-item 包含 .AnswerItem，避免重复添加时间
+    if (item.classList.contains('List-item') && item.querySelector('.AnswerItem')) return;
+    
     const timeEl = item.querySelector(C.S.time);
     if (!timeEl) return;
     const link = timeEl.querySelector('a');
     if (!link) return;
 
+    // 从 tooltip 或 aria-label 获取发布时间，从文本获取编辑时间
     const tooltip = link.getAttribute('data-tooltip') || link.getAttribute('aria-label') || '';
     const text = link.textContent.trim();
     const pm = tooltip.match(/发布于(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/);
@@ -193,6 +212,7 @@ const processTimeInfo = item => {
     if (em) str += ` · 编辑于 ${formatTime(em[1])}`;
     if (!str.trim()) return;
 
+    // 创建自定义时间元素并插入
     const div = document.createElement('div');
     div.className = 'custom-publish-time';
     div.textContent = str.replace(/^ · /, '');
@@ -212,46 +232,79 @@ const addArticleTag = item => {
 
 const addPublishTime = () => document.querySelectorAll(C.S.items).forEach(item => { processTimeInfo(item); addArticleTag(item); });
 
+// ==================== 收起回答 ====================
+const collapseAnswers = () => {
+    // 遍历所有回答的收起按钮
+    document.querySelectorAll('.AnswerItem .ContentItem-rightButton').forEach(btn => {
+        const text = btn.querySelector('.RichContent-collapsedText');
+        // 只在按钮显示"收起"时点击（即回答当前是展开状态），避免重复点击导致状态反转
+        if (text && text.textContent.includes('收起')) {
+            btn.click();
+        }
+    });
+};
+
+// ==================== 节点处理 ====================
 const processAddedNodes = mutations => {
     mutations.forEach(m => {
         m.addedNodes.forEach(n => {
             if (n.nodeType !== Node.ELEMENT_NODE) return;
             
+            // 广告拦截
             if (n.matches(C.S.ads)) { n.remove(); return; }
             const ads = n.querySelectorAll(C.S.ads);
             for (const ad of ads) ad.remove();
             
+            // 处理内容项（发布时间、文章标签）
             const item = n.matches(C.S.items) ? n : n.querySelector(C.S.items);
             if (!item) return;
             processTimeInfo(item);
             addArticleTag(item);
+            
+            // 问题详情页中，新添加的回答自动收起
+            if (location.href.includes('/question/') && item.classList.contains('AnswerItem')) {
+                const btn = item.querySelector('.ContentItem-rightButton');
+                if (btn) {
+                    const text = btn.querySelector('.RichContent-collapsedText');
+                    if (text && text.textContent.includes('收起')) {
+                        btn.click();
+                    }
+                }
+            }
         });
     });
 };
 
-// ==================== 广告屏蔽 ====================
+// ==================== 广告拦截 ====================
 const blockAds = () => {
     document.querySelectorAll(C.S.ads).forEach(ad => {
         if (!ad.dataset[ADS_DATA_ATTR]) { ad.remove(); ad.dataset[ADS_DATA_ATTR] = 'true'; }
     });
 };
 
-// ==================== 观察者管理 ====================
+// ==================== 观察者 ====================
 let observers = [], sentinel = null;
 
 const createObservers = () => {
     let urlTimeout, lastUrl = location.href;
     
+    // URL 变化监听（知乎 SPA 路由）
     const urlObserver = new MutationObserver(() => {
         if (location.href !== lastUrl) {
             lastUrl = location.href;
             clearTimeout(urlTimeout);
-            urlTimeout = setTimeout(() => { addPublishTime(); blockAds(); }, C.URL_DELAY);
+            urlTimeout = setTimeout(() => { 
+                addPublishTime(); 
+                blockAds();
+                // 切换到问题页面时自动收起回答
+                if (location.href.includes('/question/')) setTimeout(collapseAnswers, 800);
+            }, C.URL_DELAY);
         }
     });
     urlObserver.observe(document.body, { childList: true, subtree: true });
     observers.push(urlObserver);
     
+    // 滚动加载监听
     sentinel = document.createElement('div');
     sentinel.style.cssText = 'height:1px;width:100%;position:absolute;bottom:0';
     document.body.appendChild(sentinel);
@@ -264,12 +317,14 @@ const createObservers = () => {
     scrollObserver.observe(sentinel);
     observers.push(scrollObserver);
     
+    // 内容变化监听（处理动态添加的节点）
     const contentObserver = new MutationObserver(processAddedNodes);
     const mainCol = document.querySelector(C.S.mainCol);
     contentObserver.observe(mainCol || document.body, { childList: true, subtree: true });
     observers.push(contentObserver);
 };
 
+// ==================== 清理 ====================
 const cleanup = () => {
     observers.forEach(o => o.disconnect());
     observers = [];
@@ -280,27 +335,34 @@ const cleanup = () => {
 
 // ==================== 初始化 ====================
 const init = () => {
+    // 注入 CSS 样式
     const style = document.createElement('style');
     style.textContent = CSS;
     document.head.appendChild(style);
     
+    // 恢复保存的主题
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && C.THEMES[saved]) setTheme(saved);
     
+    // 创建主题菜单和顶栏滚动隐藏
     createThemeMenu();
     initHeaderScrollHide();
     
+    // 延迟处理页面内容（等待知乎数据加载）
     const isHome = location.href === 'https://www.zhihu.com/' || location.href === 'https://www.zhihu.com';
     setTimeout(() => {
-        if (location.href.includes('/question/') || location.href.includes('/p/') || isHome) {
-            addPublishTime();
-            blockAds();
-        }
+        addPublishTime();
+        blockAds();
+        // 问题详情页自动收起回答
+        if (location.href.includes('/question/')) setTimeout(collapseAnswers, 800);
     }, isHome ? 1500 : 1000);
     
+    // 创建各种观察者
     createObservers();
 };
 
+// 页面卸载时清理资源
 window.addEventListener('beforeunload', cleanup);
+// DOM 就绪后初始化
 document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init) : init();
 })();
