@@ -12,6 +12,9 @@
 ### link-direct.js
 跳过知乎等网站的中转页，直接访问目标链接
 
+### ithome.js
+绕过 IT 之家登录限制，直接显示需要登录才能查看的图片
+
 ## License
 
 [MIT](LICENSE) © 2026 wsyqn6
