@@ -16,7 +16,7 @@
 // ==================== 配置常量 ====================
 const C = {
     MAX_CACHE: 100, HEADER_HIDE: 100, HEADER_SHOW: 160, THROTTLE: 100,
-    DEBOUNCE: 300, URL_DELAY: 500, SCROLL_DELAY: 800, ROOT_MARGIN: '200px',
+    DEBOUNCE: 300, URL_DELAY: 500, SCROLL_DELAY: 800, INIT_DELAY: 1000, HOME_DELAY: 1500, ROOT_MARGIN: '200px',
     S: {
         mainCol: '.Topstory-mainColumn,.Question-mainColumn,.ContentLayout-mainColumn',
         items: '.AnswerItem, .List-item, .ArticleItem',
@@ -39,7 +39,7 @@ let currentTheme = 'light';
 // ==================== CSS 样式 ====================
 const CSS = `
 /* 主列宽屏 */
-.Topstory-mainColumn,.Question-mainColumn,.SearchMain,.ContentLayout-mainColumn,.Profile-mainColumn,.CollectionsDetailPage-mainColumn,.QuestionPage{width:calc(100% - 40px)!important;max-width:1400px!important;margin:0 auto!important;float:none!important}
+.Topstory-mainColumn,.Question-mainColumn,.SearchMain,.ContentLayout-mainColumn,.Profile-mainColumn,.CollectionsDetailPage-mainColumn{width:calc(100% - 40px)!important;max-width:1400px!important;margin:0 auto!important;float:none!important}
 /* 隐藏侧边栏及广告区域 */
 .Topstory-sideColumn,.Question-sideColumn,.ContentLayout-sideColumn,.Profile-sideColumn,.GlobalSideBar,[data-za-detail-view-path-module="RightSideBar"],.Card.QuestionHeaderTopicMeta,.Post-Row-Content-right,.Pc-Business-Card-PcTopFeedBanner,.WriteArea{display:none!important}
 /* 容器宽屏 */
@@ -107,7 +107,6 @@ body{padding-top:52px!important;background-color:var(--bg)!important}
 
 const STORAGE_KEY = 'zhihu-theme';
 const THEME_MENU_CLASS = 'theme-switcher';
-const ADS_DATA_ATTR = 'adBlocked';
 
 // ==================== 工具函数 ====================
 const timeCache = new Map();
@@ -250,15 +249,15 @@ const addArticleTag = item => {
 const addPublishTime = () => document.querySelectorAll(C.S.items).forEach(item => { processTimeInfo(item); addArticleTag(item); });
 
 // ==================== 收起回答 ====================
+const collapseItem = item => {
+    const btn = item.querySelector('.ContentItem-rightButton');
+    if (!btn) return;
+    const text = btn.querySelector('.RichContent-collapsedText');
+    if (text && text.textContent.includes('收起')) btn.click();
+};
+
 const collapseAnswers = () => {
-    // 遍历所有回答的收起按钮
-    document.querySelectorAll('.AnswerItem .ContentItem-rightButton').forEach(btn => {
-        const text = btn.querySelector('.RichContent-collapsedText');
-        // 只在按钮显示"收起"时点击（即回答当前是展开状态），避免重复点击导致状态反转
-        if (text && text.textContent.includes('收起')) {
-            btn.click();
-        }
-    });
+    document.querySelectorAll('.AnswerItem').forEach(collapseItem);
 };
 
 // ==================== 节点处理 ====================
@@ -272,31 +271,20 @@ const processAddedNodes = mutations => {
             const ads = n.querySelectorAll(C.S.ads);
             for (const ad of ads) ad.remove();
             
-            // 处理内容项（发布时间、文章标签）
-            const item = n.matches(C.S.items) ? n : n.querySelector(C.S.items);
-            if (!item) return;
-            processTimeInfo(item);
-            addArticleTag(item);
-            
-            // 问题详情页中，新添加的回答自动收起
-            if (location.href.includes('/question/') && item.classList.contains('AnswerItem')) {
-                const btn = item.querySelector('.ContentItem-rightButton');
-                if (btn) {
-                    const text = btn.querySelector('.RichContent-collapsedText');
-                    if (text && text.textContent.includes('收起')) {
-                        btn.click();
-                    }
-                }
-            }
+            const items = n.matches(C.S.items) ? [n] : [...n.querySelectorAll(C.S.items)];
+            if (!items.length) return;
+            items.forEach(item => {
+                processTimeInfo(item);
+                addArticleTag(item);
+                if (location.href.includes('/question/') && item.classList.contains('AnswerItem')) collapseItem(item);
+            });
         });
     });
 };
 
 // ==================== 广告拦截 ====================
 const blockAds = () => {
-    document.querySelectorAll(C.S.ads).forEach(ad => {
-        if (!ad.dataset[ADS_DATA_ATTR]) { ad.remove(); ad.dataset[ADS_DATA_ATTR] = 'true'; }
-    });
+    document.querySelectorAll(C.S.ads).forEach(ad => ad.remove());
 };
 
 // ==================== 观察者 ====================
@@ -314,7 +302,7 @@ const createObservers = () => {
                 addPublishTime(); 
                 blockAds();
                 // 切换到问题页面时自动收起回答
-                if (location.href.includes('/question/')) setTimeout(collapseAnswers, 800);
+                if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
             }, C.URL_DELAY);
         }
     });
@@ -371,15 +359,15 @@ const init = () => {
         addPublishTime();
         blockAds();
         // 问题详情页自动收起回答
-        if (location.href.includes('/question/')) setTimeout(collapseAnswers, 800);
-    }, isHome ? 1500 : 1000);
+        if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
+    }, isHome ? C.HOME_DELAY : C.INIT_DELAY);
     
     // 创建各种观察者
     createObservers();
 };
 
 // 页面卸载时清理资源
-window.addEventListener('beforeunload', cleanup);
+window.addEventListener('unload', cleanup);
 // DOM 就绪后初始化
 document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init) : init();
 })();
