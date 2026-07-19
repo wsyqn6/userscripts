@@ -272,6 +272,10 @@ const processAddedNodes = mutations => {
             for (const ad of ads) ad.remove();
             
             const items = n.matches(C.S.items) ? [n] : [...n.querySelectorAll(C.S.items)];
+            if (!items.length) {
+                const p = n.closest?.(C.S.items);
+                if (p) items.push(p);
+            }
             if (!items.length) return;
             items.forEach(item => {
                 processTimeInfo(item);
