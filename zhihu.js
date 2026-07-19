@@ -21,7 +21,7 @@ const C = {
         mainCol: '.Topstory-mainColumn,.Question-mainColumn,.ContentLayout-mainColumn',
         items: '.AnswerItem, .List-item, .ArticleItem',
         time: '.ContentItem-time',
-        ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem',
+        ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem, .Pc-Business-Card-PcTopFeedBanner, [data-za-detail-view-path-module="RightSideBar"], .GlobalSideBar',
         target: '.AuthorInfo, .ContentItem-meta, .VoteButton'
     },
     THEMES: {
@@ -46,7 +46,13 @@ const CSS = `
 .Topstory-container,.Question-main,.Search-container,.ContentLayout,.CollectionsDetailPage,.Post-Row-Content-left{width:100%!important;max-width:1400px!important;margin:0 auto!important}
 .Post-Row-Content-left{max-width:1000px!important}
 /* 回答项宽屏 */
-.List-item,.AnswerItem{width:100%!important;max-width:1400px!important;margin:0 auto!important}
+.List-item,.AnswerItem{width:100%!important;max-width:none!important;margin:0!important;box-sizing:border-box!important}
+/* 列表容器及头部对齐修复 */
+.ListShortcut .List,.List-header{width:100%!important;box-sizing:border-box!important}
+.List-headerOptions{margin-right:0!important;padding-right:0!important;right:auto!important}
+/* 问题页回答列表容器溢出修复 */
+.ListShortcut .List>div{width:100%!important}
+.ListShortcut .List>div>div[role="list"]{width:100%!important;max-width:none!important;padding:0!important;box-sizing:border-box!important}
 /* 玻璃顶栏 */
 .AppHeader{position:fixed!important;top:0!important;left:0!important;right:0!important;background:var(--h)!important;box-shadow:0 1px 3px rgba(0,0,0,0.08)!important;border-bottom:1px solid var(--bd)!important;transition:transform 0.35s cubic-bezier(0.4,0,0.2,1)!important;z-index:1000!important}
 html[data-theme="dark"] .AppHeader{box-shadow:0 1px 3px rgba(0,0,0,0.25)!important}
@@ -86,6 +92,17 @@ body{padding-top:52px!important;background-color:var(--bg)!important}
 .theme-switcher-menu::after{content:''!important;position:absolute!important;right:18px!important;bottom:-7px!important;width:12px!important;height:12px!important;background:var(--cd)!important;border-right:1px solid var(--bd)!important;border-bottom:1px solid var(--bd)!important;transform:rotate(45deg)!important;box-shadow:2px 2px 4px rgba(0,0,0,0.05)!important}
 /* 图片样式 */
 .RichContent-inner img,.Post-RichText img,.AnswerCard img{max-width:70%!important;height:auto!important;border-radius:8px!important}
+/* 问题页宽屏修复：清除 hash 容器宽度限制 */
+.App-main{width:100%!important;max-width:none!important}
+.QuestionPage{width:100%!important;max-width:1400px!important;margin:0 auto!important}
+.QuestionPage>div:not(.AnswerFormPortalContainer){width:100%!important;max-width:100%!important}
+.QuestionPage>div:not(.AnswerFormPortalContainer)>div:first-child{width:100%!important}
+.Question-mainColumn{width:100%!important;max-width:none!important}
+/* 问题头宽屏 */
+.QuestionHeader-content{width:100%!important;max-width:none!important;padding:16px 0!important}
+.QuestionHeader-main{flex:1!important;min-width:0!important}
+.QuestionHeader-title,.QuestionRichText{width:100%!important;max-width:none!important}
+.QuestionHeader-footer{width:100%!important}
 `;
 
 const STORAGE_KEY = 'zhihu-theme';
