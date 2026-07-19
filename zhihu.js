@@ -16,13 +16,12 @@
 // ==================== 配置常量 ====================
 const C = {
     MAX_CACHE: 100, HEADER_HIDE: 100, HEADER_SHOW: 160, THROTTLE: 100,
-    DEBOUNCE: 300, URL_DELAY: 500, SCROLL_DELAY: 800, INIT_DELAY: 1000, HOME_DELAY: 1500, ROOT_MARGIN: '200px',
+    URL_DELAY: 500, SCROLL_DELAY: 800, INIT_DELAY: 1000, HOME_DELAY: 1500,
     S: {
         mainCol: '.Topstory-mainColumn,.Question-mainColumn,.ContentLayout-mainColumn',
         items: '.AnswerItem, .List-item, .ArticleItem',
         time: '.ContentItem-time',
-        ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem, .Pc-Business-Card-PcTopFeedBanner, [data-za-detail-view-path-module="RightSideBar"], .GlobalSideBar',
-        target: '.AuthorInfo, .ContentItem-meta, .VoteButton'
+        ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem, .Pc-Business-Card-PcTopFeedBanner, [data-za-detail-view-path-module="RightSideBar"], .GlobalSideBar'
     },
     THEMES: {
         light:  { n:'晨曦白',   bg:'#f4f3ef', tx:'#2d2a24', ti:'#1a1815', ac:'#8a8072', bd:'#e0dcd2', cd:'#fcfbf8', hd:'rgba(244,243,239,0.7)', lk:'#7a6a58', hl:'rgba(122,106,88,0.1)' },
@@ -110,18 +109,16 @@ const THEME_MENU_CLASS = 'theme-switcher';
 
 // ==================== 工具函数 ====================
 const timeCache = new Map();
-const cacheOrder = [];
 
 const formatTime = t => {
     if (!t) return '';
     if (timeCache.has(t)) return timeCache.get(t);
     const d = new Date(/^\d+$/.test(t) ? parseInt(t) * 1000 : t);
     const r = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    if (cacheOrder.length >= C.MAX_CACHE) {
-        const oldest = cacheOrder.shift();
+    if (timeCache.size >= C.MAX_CACHE) {
+        const oldest = timeCache.keys().next().value;
         timeCache.delete(oldest);
     }
-    cacheOrder.push(t);
     timeCache.set(t, r);
     return r;
 };
@@ -150,8 +147,11 @@ const setTheme = k => {
     if (!C.THEMES[k]) return;
     currentTheme = k;
     const t = C.THEMES[k], r = document.documentElement;
-    const props = { bg: t.bg, tx: t.tx, ti: t.ti, ac: t.ac, bd: t.bd, cd: t.cd, h: t.hd, lk: t.lk, hl: t.hl };
-    for (const p in props) r.style.setProperty(`--${p}`, props[p]);
+    const cssKey = { hd: 'h' };
+    for (const key in t) {
+        if (key === 'n') continue;
+        r.style.setProperty(`--${cssKey[key] || key}`, t[key]);
+    }
     k === 'dark' ? r.setAttribute('data-theme', 'dark') : r.removeAttribute('data-theme');
     localStorage.setItem(STORAGE_KEY, k);
     document.querySelectorAll('.' + THEME_MENU_CLASS + '-item').forEach(i => i.classList.toggle('active', i.dataset.theme === k));
@@ -292,41 +292,26 @@ const blockAds = () => {
 };
 
 // ==================== 观察者 ====================
-let observers = [], sentinel = null;
+let observers = [], _pushState, _replaceState;
 
 const createObservers = () => {
-    let urlTimeout, lastUrl = location.href;
+    let urlTimeout;
+    _pushState = history.pushState;
+    _replaceState = history.replaceState;
     
-    // URL 变化监听（知乎 SPA 路由）
-    const urlObserver = new MutationObserver(() => {
-        if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            clearTimeout(urlTimeout);
-            urlTimeout = setTimeout(() => { 
-                addPublishTime(); 
-                blockAds();
-                // 切换到问题页面时自动收起回答
-                if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
-            }, C.URL_DELAY);
-        }
-    });
-    urlObserver.observe(document.body, { childList: true, subtree: true });
-    observers.push(urlObserver);
+    const onUrlChange = () => {
+        clearTimeout(urlTimeout);
+        urlTimeout = setTimeout(() => { 
+            addPublishTime(); 
+            blockAds();
+            if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
+        }, C.URL_DELAY);
+    };
     
-    // 滚动加载监听
-    sentinel = document.createElement('div');
-    sentinel.style.cssText = 'height:1px;width:100%;position:absolute;bottom:0';
-    document.body.appendChild(sentinel);
+    history.pushState = (...args) => { _pushState.apply(history, args); onUrlChange(); };
+    history.replaceState = (...args) => { _replaceState.apply(history, args); onUrlChange(); };
+    window.addEventListener('popstate', onUrlChange);
     
-    const scrollObserver = new IntersectionObserver(entries => {
-        if (entries.some(e => e.isIntersecting)) {
-            setTimeout(() => { addPublishTime(); blockAds(); }, C.SCROLL_DELAY);
-        }
-    }, { rootMargin: C.ROOT_MARGIN });
-    scrollObserver.observe(sentinel);
-    observers.push(scrollObserver);
-    
-    // 内容变化监听（处理动态添加的节点）
     const contentObserver = new MutationObserver(processAddedNodes);
     const mainCol = document.querySelector(C.S.mainCol);
     contentObserver.observe(mainCol || document.body, { childList: true, subtree: true });
@@ -338,8 +323,9 @@ const cleanup = () => {
     observers.forEach(o => o.disconnect());
     observers = [];
     timeCache.clear();
-    sentinel?.parentNode?.removeChild(sentinel);
     document.querySelector('.theme-switcher')?.remove();
+    if (_pushState) history.pushState = _pushState;
+    if (_replaceState) history.replaceState = _replaceState;
 };
 
 // ==================== 初始化 ====================
