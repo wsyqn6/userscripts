@@ -2,7 +2,7 @@
 // @name         知乎极简宽屏·液态玻璃顶栏·主题切换
 // @namespace    https://github.com/wsyqn6/userscripts
 // @version      1.2
-// @description  宽屏布局、玻璃顶栏、6种护眼主题、优化可读性
+// @description  宽屏布局、玻璃顶栏、7种护眼主题、优化可读性
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -24,12 +24,14 @@ const C = {
         ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem, .Pc-Business-Card-PcTopFeedBanner, [data-za-detail-view-path-module="RightSideBar"], .GlobalSideBar'
     },
     THEMES: {
-        light:  { n:'晨曦白',   bg:'#f4f3ef', tx:'#2d2a24', ti:'#1a1815', ac:'#8a8072', bd:'#e0dcd2', cd:'#fcfbf8', hd:'rgba(244,243,239,0.7)', lk:'#7a6a58', hl:'rgba(122,106,88,0.1)' },
-        warm:   { n:'羊皮纸',   bg:'#f4efe4', tx:'#3a3226', ti:'#241e15', ac:'#968267', bd:'#dcd1c0', cd:'#faf5ec', hd:'rgba(244,239,228,0.7)', lk:'#3d6b5a', hl:'rgba(61,107,90,0.1)' },
-        green:  { n:'薄荷绿',   bg:'#ebf1eb', tx:'#28352b', ti:'#17241b', ac:'#608260', bd:'#c9d6c9', cd:'#f4f8f4', hd:'rgba(235,241,235,0.7)', lk:'#3f7a4f', hl:'rgba(63,122,79,0.1)' },
-        blue:   { n:'雾霾蓝',   bg:'#ebeff4', tx:'#1c2838', ti:'#0e1826', ac:'#57728d', bd:'#c8d2de', cd:'#f4f6f9', hd:'rgba(235,239,244,0.7)', lk:'#4a72a5', hl:'rgba(74,114,165,0.1)' },
-        amber:  { n:'琥珀黄昏', bg:'#fcf4e6', tx:'#423828', ti:'#2a2216', ac:'#a88758', bd:'#e8dac6', cd:'#fefbf4', hd:'rgba(252,244,230,0.7)', lk:'#8a5010', hl:'rgba(138,80,16,0.1)' },
-        dark:   { n:'午夜黑',   bg:'#131313', tx:'#c8c8c8', ti:'#dcdcdc', ac:'#787878', bd:'#282828', cd:'#1a1a1a', hd:'rgba(19,19,19,0.85)', lk:'#7895ad', hl:'rgba(120,149,173,0.15)' }
+        light:    { n:'晨曦白',   bg:'#f7f5f0', tx:'#2e2924', ti:'#1a1712', ac:'#8a7660', bd:'#ddd6cc', cd:'#fefdfa', hd:'rgba(247,245,240,0.72)', lk:'#5b7a9a', hl:'rgba(91,122,154,0.1)' },
+        gray:     { n:'石墨灰',   bg:'#e6e8ed', tx:'#2c2f36', ti:'#181a21', ac:'#696f7a', bd:'#ccd0d8', cd:'#f5f6f8', hd:'rgba(230,232,237,0.72)', lk:'#5a7a9a', hl:'rgba(90,122,154,0.1)' },
+        green:    { n:'薄荷绿',   bg:'#e4ede4', tx:'#283228', ti:'#182418', ac:'#527a52', bd:'#c4d4c4', cd:'#f0f6f0', hd:'rgba(228,237,228,0.72)', lk:'#36805a', hl:'rgba(54,128,90,0.1)' },
+        blue:     { n:'雾霾蓝',   bg:'#e3e9f0', tx:'#1c2838', ti:'#0e1826', ac:'#4d6b8a', bd:'#c2cedc', cd:'#f0f4f8', hd:'rgba(227,233,240,0.72)', lk:'#4a72ad', hl:'rgba(74,114,173,0.12)' },
+        amber:    { n:'琥珀黄昏', bg:'#f5e9d2', tx:'#3f3220', ti:'#261c0e', ac:'#b08844', bd:'#e0cfb4', cd:'#fcf4e6', hd:'rgba(245,233,210,0.72)', lk:'#b07a28', hl:'rgba(176,122,40,0.1)' },
+        gray:     { n:'烟灰',     bg:'#2a2c32', tx:'#cbcdd3', ti:'#e2e4e8', ac:'#8e929e', bd:'#43454d', cd:'#35373d', hd:'rgba(42,44,50,0.85)', lk:'#7a9eb5', hl:'rgba(122,158,181,0.15)' },
+        dark:     { n:'午夜黑',   bg:'#131313', tx:'#c8c8c8', ti:'#dcdcdc', ac:'#787878', bd:'#282828', cd:'#1a1a1a', hd:'rgba(19,19,19,0.85)', lk:'#7895ad', hl:'rgba(120,149,173,0.15)' },
+        darkBlue: { n:'深海蓝',   bg:'#0e1118', tx:'#c4c8cf', ti:'#d8dbe0', ac:'#6b748a', bd:'#242a38', cd:'#161a24', hd:'rgba(14,17,24,0.85)', lk:'#7a9ebd', hl:'rgba(122,158,189,0.15)' }
     }
 };
 
@@ -40,7 +42,7 @@ const CSS = `
 /* 主列宽屏 */
 .Topstory-mainColumn,.Question-mainColumn,.SearchMain,.ContentLayout-mainColumn,.Profile-mainColumn,.CollectionsDetailPage-mainColumn{width:calc(100% - 40px)!important;max-width:1400px!important;margin:0 auto!important;float:none!important}
 /* 隐藏侧边栏及广告区域 */
-.Topstory-sideColumn,.Question-sideColumn,.ContentLayout-sideColumn,.Profile-sideColumn,.GlobalSideBar,[data-za-detail-view-path-module="RightSideBar"],.Card.QuestionHeaderTopicMeta,.Post-Row-Content-right,.Pc-Business-Card-PcTopFeedBanner,.WriteArea{display:none!important}
+.Topstory-sideColumn,.Question-sideColumn,.ContentLayout-sideColumn,.Profile-sideColumn,.GlobalSideBar,[data-za-detail-view-path-module="RightSideBar"],.Card.QuestionHeaderTopicMeta,.Post-Row-Content-right,.Pc-Business-Card-PcTopFeedBanner,.WriteArea,.TopstoryItem-isRecommend:empty{display:none!important}
 /* 容器宽屏 */
 .Topstory-container,.Question-main,.Search-container,.ContentLayout,.CollectionsDetailPage,.Post-Row-Content-left{width:100%!important;max-width:1400px!important;margin:0 auto!important}
 .Post-Row-Content-left{max-width:1000px!important}
@@ -57,7 +59,7 @@ const CSS = `
 html[data-theme="dark"] .AppHeader{box-shadow:0 1px 3px rgba(0,0,0,0.25)!important}
 .AppHeader.header--hidden{transform:translate3d(0,-100%,0)!important}
 /* 页面基础样式 */
-body{padding-top:52px!important;background-color:var(--bg)!important}
+body{padding-top:52px!important;background-color:var(--bg)!important;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .Post-content{margin-top:0!important}
 /* 内容可读性优化 */
 .RichContent-inner{color:var(--tx)!important;line-height:1.75!important}
@@ -152,7 +154,7 @@ const setTheme = k => {
         if (key === 'n') continue;
         r.style.setProperty(`--${cssKey[key] || key}`, t[key]);
     }
-    k === 'dark' ? r.setAttribute('data-theme', 'dark') : r.removeAttribute('data-theme');
+    k === 'gray' || k.startsWith('dark') ? r.setAttribute('data-theme', 'dark') : r.removeAttribute('data-theme');
     localStorage.setItem(STORAGE_KEY, k);
     document.querySelectorAll('.' + THEME_MENU_CLASS + '-item').forEach(i => i.classList.toggle('active', i.dataset.theme === k));
 };
@@ -270,10 +272,12 @@ const processAddedNodes = mutations => {
             if (n.matches(C.S.ads)) { n.remove(); return; }
             const ads = n.querySelectorAll(C.S.ads);
             for (const ad of ads) ad.remove();
+            for (const c of n.querySelectorAll('.TopstoryItem-isRecommend')) { if (!c.textContent.trim()) c.remove(); }
+            if (n.matches('.TopstoryItem-isRecommend') && !n.textContent.trim()) { n.remove(); return; }
             
             const items = n.matches(C.S.items) ? [n] : [...n.querySelectorAll(C.S.items)];
             if (!items.length) {
-                const p = n.closest?.(C.S.items);
+                const p = n.closest(C.S.items);
                 if (p) items.push(p);
             }
             if (!items.length) return;
@@ -289,6 +293,9 @@ const processAddedNodes = mutations => {
 // ==================== 广告拦截 ====================
 const blockAds = () => {
     document.querySelectorAll(C.S.ads).forEach(ad => ad.remove());
+    document.querySelectorAll('.TopstoryItem-isRecommend').forEach(card => {
+        if (!card.textContent.trim()) card.remove();
+    });
 };
 
 // ==================== 观察者 ====================
