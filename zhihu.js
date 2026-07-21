@@ -25,13 +25,12 @@ const C = {
     },
     THEMES: {
         light:    { n:'晨曦白',   bg:'#f7f5f0', tx:'#2e2924', ti:'#1a1712', ac:'#8a7660', bd:'#ddd6cc', cd:'#fefdfa', hd:'rgba(247,245,240,0.72)', lk:'#5b7a9a', hl:'rgba(91,122,154,0.1)' },
-        gray:     { n:'石墨灰',   bg:'#e6e8ed', tx:'#2c2f36', ti:'#181a21', ac:'#696f7a', bd:'#ccd0d8', cd:'#f5f6f8', hd:'rgba(230,232,237,0.72)', lk:'#5a7a9a', hl:'rgba(90,122,154,0.1)' },
         green:    { n:'薄荷绿',   bg:'#e4ede4', tx:'#283228', ti:'#182418', ac:'#527a52', bd:'#c4d4c4', cd:'#f0f6f0', hd:'rgba(228,237,228,0.72)', lk:'#36805a', hl:'rgba(54,128,90,0.1)' },
         blue:     { n:'雾霾蓝',   bg:'#e3e9f0', tx:'#1c2838', ti:'#0e1826', ac:'#4d6b8a', bd:'#c2cedc', cd:'#f0f4f8', hd:'rgba(227,233,240,0.72)', lk:'#4a72ad', hl:'rgba(74,114,173,0.12)' },
         amber:    { n:'琥珀黄昏', bg:'#f5e9d2', tx:'#3f3220', ti:'#261c0e', ac:'#b08844', bd:'#e0cfb4', cd:'#fcf4e6', hd:'rgba(245,233,210,0.72)', lk:'#b07a28', hl:'rgba(176,122,40,0.1)' },
-        gray:     { n:'烟灰',     bg:'#2a2c32', tx:'#cbcdd3', ti:'#e2e4e8', ac:'#8e929e', bd:'#43454d', cd:'#35373d', hd:'rgba(42,44,50,0.85)', lk:'#7a9eb5', hl:'rgba(122,158,181,0.15)' },
-        dark:     { n:'午夜黑',   bg:'#131313', tx:'#c8c8c8', ti:'#dcdcdc', ac:'#787878', bd:'#282828', cd:'#1a1a1a', hd:'rgba(19,19,19,0.85)', lk:'#7895ad', hl:'rgba(120,149,173,0.15)' },
-        darkBlue: { n:'深海蓝',   bg:'#0e1118', tx:'#c4c8cf', ti:'#d8dbe0', ac:'#6b748a', bd:'#242a38', cd:'#161a24', hd:'rgba(14,17,24,0.85)', lk:'#7a9ebd', hl:'rgba(122,158,189,0.15)' }
+        gray:     { n:'暮色灰',   bg:'#2a2c32', tx:'#babec6', ti:'#c6cad0', ac:'#989da8', bd:'#43454d', cd:'#35373d', hd:'rgba(42,44,50,0.85)', lk:'#7a9eb5', hl:'rgba(122,158,181,0.15)' },
+        dark:     { n:'午夜黑',   bg:'#131313', tx:'#b3b7be', ti:'#c0c4ca', ac:'#8d929b', bd:'#2a2a2e', cd:'#1a1a1a', hd:'rgba(19,19,19,0.85)', lk:'#7895ad', hl:'rgba(120,149,173,0.15)' },
+        darkBlue: { n:'深海蓝',   bg:'#0e1118', tx:'#afb4bf', ti:'#bcc2cc', ac:'#8a909f', bd:'#282e3c', cd:'#161a24', hd:'rgba(14,17,24,0.85)', lk:'#7a9ebd', hl:'rgba(122,158,189,0.15)' }
     }
 };
 
@@ -62,7 +61,7 @@ html[data-theme="dark"] .AppHeader{box-shadow:0 1px 3px rgba(0,0,0,0.25)!importa
 body{padding-top:52px!important;background-color:var(--bg)!important;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .Post-content{margin-top:0!important}
 /* 内容可读性优化 */
-.RichContent-inner{color:var(--tx)!important;line-height:1.75!important}
+.RichContent-inner,.CommentItem .ContentItem-content,.CommentItem .RichText,.CommentItem-content .RichText{color:var(--tx)!important;line-height:1.75!important}
 .RichContent-inner h1,.RichContent-inner h2,.RichContent-inner h3,.RichContent-inner h4{color:var(--ti)!important;line-height:1.5!important}
 .RichContent-inner strong{color:var(--ti)!important}
 .RichContent-inner a{color:var(--lk)!important;border-bottom:1px solid transparent!important;transition:border-color 0.2s ease!important}
