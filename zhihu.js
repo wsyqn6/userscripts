@@ -61,7 +61,9 @@ html[data-theme="dark"] .AppHeader{box-shadow:0 1px 3px rgba(0,0,0,0.25)!importa
 body{padding-top:52px!important;background-color:var(--bg)!important;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .Post-content{margin-top:0!important}
 /* 内容可读性优化 */
-.RichContent-inner,.CommentItem .ContentItem-content,.CommentItem .RichText,.CommentItem-content .RichText{color:var(--tx)!important;line-height:1.75!important}
+.RichContent-inner{color:var(--tx)!important;line-height:1.75!important}
+div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
+.CommentItemV2-meta{color:var(--ac)!important}
 .RichContent-inner h1,.RichContent-inner h2,.RichContent-inner h3,.RichContent-inner h4{color:var(--ti)!important;line-height:1.5!important}
 .RichContent-inner strong{color:var(--ti)!important}
 .RichContent-inner a{color:var(--lk)!important;border-bottom:1px solid transparent!important;transition:border-color 0.2s ease!important}
