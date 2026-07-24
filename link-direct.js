@@ -80,8 +80,6 @@
             return;
         }
 
-        if (!allHosts.some(h => document.querySelector(`a[href*="${h}"]`))) return;
-
         fixLinks();
 
         document.addEventListener('mousedown', e => {
