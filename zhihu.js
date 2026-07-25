@@ -288,7 +288,6 @@ const processAddedNodes = mutations => {
             items.forEach(item => {
                 processTimeInfo(item);
                 addArticleTag(item);
-                if (location.href.includes('/question/') && item.classList.contains('AnswerItem')) collapseItem(item);
             });
         });
     });
