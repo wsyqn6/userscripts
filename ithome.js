@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IT之家·优化阅读体验
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      2.2
+// @version      2.3
 // @description  解锁登录图片，移除广告，热榜集成到侧边栏，信息流全屏展示
 // @author       wsyqn6
 // @match        *://*.ithome.com/*
@@ -69,6 +69,26 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
         const obs = new MutationObserver(() => { if (check()) { obs.disconnect(); cb(); } });
         obs.observe(document.body, { childList: true, subtree: true });
         if (ttl) setTimeout(() => obs.disconnect(), ttl);
+    };
+
+    const waitForRankContent = (cb, ttl = 15000) => {
+        const check = () => {
+            const rank = document.getElementById('rank');
+            if (!rank) return false;
+            const bdElements = rank.querySelectorAll('.bd');
+            if (bdElements.length === 0) return false;
+            return [...bdElements].every(bd => bd.querySelectorAll('li').length > 0);
+        };
+        if (check()) return void cb();
+        const obs = new MutationObserver(() => { if (check()) { obs.disconnect(); cb(); } });
+        obs.observe(document.body, { childList: true, subtree: true });
+        setTimeout(() => {
+            obs.disconnect();
+            const rank = document.getElementById('rank');
+            if (rank && rank.querySelectorAll('.bd li').length > 0) {
+                cb();
+            }
+        }, ttl);
     };
 
     const removeAds = () => document.querySelectorAll(S.ads).forEach(el => el.remove());
@@ -172,7 +192,13 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
             }
         }).observe(document.body, { childList: true, subtree: true });
 
-        waitForAll([S.rank, S.sideFunc], () => { removeAds(); cleanSidebar(); initRankPanel(); }, 10000);
+        waitForAll([S.rank, S.sideFunc], () => {
+            removeAds();
+            cleanSidebar();
+            waitForRankContent(() => {
+                initRankPanel();
+            });
+        }, 10000);
     };
 
     init();
