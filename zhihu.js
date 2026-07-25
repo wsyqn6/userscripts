@@ -48,8 +48,9 @@ const CSS = `
 /* 回答项宽屏 */
 .List-item,.AnswerItem{width:100%!important;max-width:none!important;margin:0!important;box-sizing:border-box!important}
 /* 列表容器及头部对齐修复 */
-.ListShortcut .List,.List-header{width:100%!important;box-sizing:border-box!important}
-.List-headerOptions{margin-right:0!important;padding-right:0!important;right:auto!important}
+.ListShortcut .List{width:100%!important;box-sizing:border-box!important}
+.List-header{width:calc(100% - 40px)!important;margin:0 20px!important;box-sizing:border-box!important}
+.List-headerOptions{margin-right:0!important;padding-right:0!important;right:auto!important;position:relative!important}
 /* 问题页回答列表容器溢出修复 */
 .ListShortcut .List>div{width:100%!important}
 .ListShortcut .List>div>div[role="list"]{width:100%!important;max-width:none!important;padding:0!important;box-sizing:border-box!important}
@@ -72,6 +73,8 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .Post-Title,.QuestionTitle{color:var(--ti)!important}
 /* 卡片样式 */
 .Card,.List-item,.AnswerItem,.ContentItem{background-color:var(--cd)!important;border-color:var(--bd)!important;transition:background-color 0.3s ease,border-color 0.3s ease!important}
+/* 回答选中状态下边框修复 */
+.AnswerItem.is-selected{border-bottom-width:2px!important;border-bottom-style:solid!important;border-bottom-color:var(--ac)!important}
 /* 自定义发布时间 */
 .custom-publish-time{font-size:13px;color:var(--ac)!important;margin-top:4px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid var(--bd)!important;display:block;clear:both}
 /* 文章标签 */
