@@ -18,8 +18,8 @@ const C = {
     MAX_CACHE: 100, HEADER_HIDE: 100, HEADER_SHOW: 160, THROTTLE: 100,
     URL_DELAY: 500, SCROLL_DELAY: 800, INIT_DELAY: 1000, HOME_DELAY: 1500,
     S: {
-        mainCol: '.Topstory-mainColumn,.Question-mainColumn,.ContentLayout-mainColumn',
-        items: '.AnswerItem, .List-item, .ArticleItem',
+        mainCol: '.Topstory-mainColumn,.Question-mainColumn,.ContentLayout-mainColumn,.SearchMain',
+        items: '.AnswerItem, .List-item, .ArticleItem, .SearchResultItem',
         time: '.ContentItem-time',
         ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem, .Pc-Business-Card-PcTopFeedBanner, [data-za-detail-view-path-module="RightSideBar"], .GlobalSideBar'
     },
@@ -28,7 +28,7 @@ const C = {
         green:    { n:'薄荷绿',   bg:'#e4ede4', tx:'#283228', ti:'#182418', ac:'#527a52', bd:'#c4d4c4', cd:'#f0f6f0', hd:'rgba(228,237,228,0.72)', lk:'#36805a', hl:'rgba(54,128,90,0.1)' },
         blue:     { n:'雾霾蓝',   bg:'#e3e9f0', tx:'#1c2838', ti:'#0e1826', ac:'#4d6b8a', bd:'#c2cedc', cd:'#f0f4f8', hd:'rgba(227,233,240,0.72)', lk:'#4a72ad', hl:'rgba(74,114,173,0.12)' },
         amber:    { n:'琥珀黄昏', bg:'#f5e9d2', tx:'#3f3220', ti:'#261c0e', ac:'#b08844', bd:'#e0cfb4', cd:'#fcf4e6', hd:'rgba(245,233,210,0.72)', lk:'#b07a28', hl:'rgba(176,122,40,0.1)' },
-        gray:     { n:'暮色灰',   bg:'#2a2c32', tx:'#babec6', ti:'#c6cad0', ac:'#989da8', bd:'#43454d', cd:'#35373d', hd:'rgba(42,44,50,0.85)', lk:'#7a9eb5', hl:'rgba(122,158,181,0.15)' },
+        gray:     { n:'暮色灰',   bg:'#323438', tx:'#c2c5cd', ti:'#ced1d8', ac:'#a0a5b0', bd:'#4a4d55', cd:'#3d3f45', hd:'rgba(50,52,56,0.85)', lk:'#84aac2', hl:'rgba(132,170,194,0.15)' },
         dark:     { n:'午夜黑',   bg:'#131313', tx:'#b3b7be', ti:'#c0c4ca', ac:'#8d929b', bd:'#2a2a2e', cd:'#1a1a1a', hd:'rgba(19,19,19,0.85)', lk:'#7895ad', hl:'rgba(120,149,173,0.15)' },
         darkBlue: { n:'深海蓝',   bg:'#0e1118', tx:'#afb4bf', ti:'#bcc2cc', ac:'#8a909f', bd:'#282e3c', cd:'#161a24', hd:'rgba(14,17,24,0.85)', lk:'#7a9ebd', hl:'rgba(122,158,189,0.15)' }
     }
@@ -41,12 +41,14 @@ const CSS = `
 /* 主列宽屏 */
 .Topstory-mainColumn,.Question-mainColumn,.SearchMain,.ContentLayout-mainColumn,.Profile-mainColumn,.CollectionsDetailPage-mainColumn{width:calc(100% - 40px)!important;max-width:1400px!important;margin:0 auto!important;float:none!important}
 /* 隐藏侧边栏及广告区域 */
-.Topstory-sideColumn,.Question-sideColumn,.ContentLayout-sideColumn,.Profile-sideColumn,.GlobalSideBar,[data-za-detail-view-path-module="RightSideBar"],.Card.QuestionHeaderTopicMeta,.Post-Row-Content-right,.Pc-Business-Card-PcTopFeedBanner,.WriteArea,.TopstoryItem-isRecommend:empty{display:none!important}
+.Topstory-sideColumn,.Question-sideColumn,.ContentLayout-sideColumn,.Profile-sideColumn,.Search-sideColumn,.KanshanCornerButton,.CornerButton,.GlobalSideBar,[data-za-detail-view-path-module="RightSideBar"],.Card.QuestionHeaderTopicMeta,.Post-Row-Content-right,.Pc-Business-Card-PcTopFeedBanner,.WriteArea,.TopstoryItem-isRecommend:empty,.Search-container > div:not(.SearchMain){display:none!important}
+/* 防止未隐藏宽元素导致水平滚动条 */
+body{overflow-x:hidden!important}
 /* 容器宽屏 */
 .Topstory-container,.Question-main,.Search-container,.ContentLayout,.CollectionsDetailPage,.Post-Row-Content-left{width:100%!important;max-width:1400px!important;margin:0 auto!important}
 .Post-Row-Content-left{max-width:1000px!important}
-/* 回答项宽屏 */
-.List-item,.AnswerItem{width:100%!important;max-width:none!important;margin:0!important;box-sizing:border-box!important}
+/* 回答项宽屏：保留底间距，避免相邻卡片压住下边框与阅读全文按钮 */
+.List-item,.AnswerItem{width:100%!important;max-width:none!important;margin:0 0 10px!important;box-sizing:border-box!important}
 /* 列表容器及头部对齐修复 */
 .ListShortcut .List{width:100%!important;box-sizing:border-box!important}
 .List-header{width:calc(100% - 40px)!important;margin:0 20px!important;box-sizing:border-box!important}
