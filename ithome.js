@@ -93,6 +93,25 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
 
     const removeAds = () => document.querySelectorAll(S.ads).forEach(el => el.remove());
 
+    const removeLoginPopups = (roots) => {
+        document.querySelectorAll('[class*="login-guide" i], [class*="loginguide" i], [class*="login-pop" i], [class*="loginpop" i], [class*="login-modal" i], [class*="login-mask" i], [class*="login-layer" i], [class*="loginbox" i]')
+            .forEach(el => el.remove());
+
+        const w = window.innerWidth;
+        const nodes = roots || [...document.querySelectorAll('body *')];
+        nodes.forEach(el => {
+            if (el.nodeType !== 1) return;
+            if (!el.offsetParent && getComputedStyle(el).position !== 'fixed') return;
+            const cs = getComputedStyle(el);
+            if (!/fixed|absolute/.test(cs.position)) return;
+            const r = el.getBoundingClientRect();
+            if (r.top < 160 && r.right > w - 220 && r.width < 360 && r.height < 360) {
+                const t = el.textContent.replace(/\s/g, '');
+                if (/登录|注册|快捷登录|立即登录|登录后/.test(t)) el.remove();
+            }
+        });
+    };
+
     const cleanSidebar = () => {
         document.querySelectorAll('#side_func .sfa').forEach(el => {
             if (['app', 'sideweixin', 'tougao'].some(c => el.classList.contains(c))) el.remove();
@@ -122,7 +141,7 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
 <div class="ithome-rank-lists">${tabLists.map((items, ti) => `
 <ul class="ithome-rank-list${ti ? '' : ' active'}" data-i="${ti}">${items.map(a => {
     const nc = a.rank <= 3 ? 'top' + a.rank : 'normal';
-    return `<li class="ithome-rank-item"><span class="ithome-rank-num ${nc}">${a.rank}</span><a href="${a.href}">${a.text}</a></li>`;
+    return `<li class="ithome-rank-item"><span class="ithome-rank-num ${nc}">${a.rank}</span><a href="${a.href}" target="_blank" rel="noopener noreferrer">${a.text}</a></li>`;
 }).join('')}</ul>`).join('')}</div></div>`;
 
         const mask = Object.assign(document.createElement('div'), { id: 'ithome-rank-mask', className: 'ithome-rank-mask' });
@@ -199,6 +218,16 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
                 initRankPanel();
             });
         }, 10000);
+
+        removeLoginPopups();
+        new MutationObserver(muts => {
+            const added = [];
+            for (const m of muts) for (const n of m.addedNodes) {
+                if (n.nodeType !== 1) continue;
+                added.push(n, ...n.querySelectorAll('*'));
+            }
+            if (added.length) removeLoginPopups(added);
+        }).observe(document.body, { childList: true, subtree: true });
     };
 
     init();
