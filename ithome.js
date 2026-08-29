@@ -16,7 +16,7 @@
 .ithome-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
 .ithome-overlay.show{opacity:1;pointer-events:auto}
 .ithome-overlay img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px}
-.ithome-overlay-close{position:absolute;top:20px;right:20px;width:40px;height:40px;background:rgba(255,255,255,.15);border:none;border-radius:50%;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ithome-overlay-close{position:absolute;top:80px;right:20px;width:40px;height:40px;background:rgba(255,255,255,.15);border:none;border-radius:50%;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1}
 .ithome-rank-panel{position:fixed;top:0;right:-340px;width:340px;height:100vh;background:#fff;z-index:9997;box-shadow:-2px 0 12px rgba(0,0,0,.1);transition:right .3s;overflow-y:auto;font-family:Microsoft Yahei,PingFang SC,HanHei SC,Arial}
 .ithome-rank-panel.show{right:0}
 .ithome-rank-panel-header{padding:16px 20px;background:#1a1a1a;border-bottom:3px solid #d22222;display:flex;align-items:center;justify-content:space-between}
@@ -43,7 +43,7 @@
 body.red #side_func a.sfa.rank{background-color:#d22222}
 body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
 #list .fl{width:100%!important;float:none!important}
-#list .fr.fx.fix-top{display:none!important}
+#list .fr.fx.fix-top,.fr.fx.no-bottom.fix-top{display:none!important}
 #dt .fl.content{width:100%!important;float:none!important}
 #list .bl li{display:flex!important;gap:20px!important;padding:20px 0!important}
 #list .bl li .img{flex:0 0 min(280px,30vw)!important}
