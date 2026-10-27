@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎极简宽屏·液态玻璃顶栏·主题切换
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      1.2
-// @description  宽屏布局、玻璃顶栏、7种护眼主题、优化可读性
+// @version      1.6
+// @description  宽屏布局、玻璃顶栏、7种护眼主题、优化可读性、首页折叠回答图片屏蔽
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -75,6 +75,8 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .Post-Title,.QuestionTitle{color:var(--ti)!important}
 /* 卡片样式 */
 .Card,.List-item,.AnswerItem,.ContentItem{background-color:var(--cd)!important;border-color:var(--bd)!important;transition:background-color 0.3s ease,border-color 0.3s ease!important}
+/* 取消回答展开后赞同栏底部固定 */
+.ContentItem-actions,[class*="ContentItem-actions"],.AnswerItem-toolbar{position:static!important;bottom:auto!important;z-index:auto!important}
 /* 回答选中状态下边框修复 */
 .AnswerItem.is-selected{border-bottom-width:2px!important;border-bottom-style:solid!important;border-bottom-color:var(--ac)!important}
 /* 自定义发布时间 */
@@ -97,8 +99,24 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .theme-preview{width:20px!important;height:20px!important;border-radius:6px!important;margin-right:12px!important;border:2px solid rgba(0,0,0,0.08)!important;flex-shrink:0!important;transition:transform 0.2s ease!important}
 .theme-switcher-item:hover .theme-preview{transform:scale(1.15)!important}
 .theme-switcher-menu::after{content:''!important;position:absolute!important;right:18px!important;bottom:-7px!important;width:12px!important;height:12px!important;background:var(--cd)!important;border-right:1px solid var(--bd)!important;border-bottom:1px solid var(--bd)!important;transform:rotate(45deg)!important;box-shadow:2px 2px 4px rgba(0,0,0,0.05)!important}
+/* 菜单内开关 */
+.theme-switcher-divider{height:1px!important;margin:8px 12px!important;background:var(--bd)!important}
+.theme-toggle{justify-content:space-between!important;gap:12px!important}
+.theme-toggle:hover{padding-left:20px!important}
+.theme-toggle-switch{position:relative!important;width:34px!important;height:20px!important;border-radius:10px!important;background:var(--bd)!important;flex-shrink:0!important;transition:background 0.2s ease!important}
+.theme-toggle-switch::after{content:''!important;position:absolute!important;top:2px!important;left:2px!important;width:16px!important;height:16px!important;border-radius:50%!important;background:var(--cd)!important;box-shadow:0 1px 3px rgba(0,0,0,0.2)!important;transition:transform 0.2s ease!important}
+html[data-fold-hide-img] .theme-toggle-switch{background:var(--lk)!important}
+html[data-fold-hide-img] .theme-toggle-switch::after{transform:translateX(14px)!important}
 /* 图片样式 */
 .RichContent-inner img,.Post-RichText img,.AnswerCard img{max-width:70%!important;height:auto!important;border-radius:8px!important}
+/* 首页折叠回答内图片隐藏（展开后自动恢复，可开关） */
+html[data-zhihu-home][data-fold-hide-img] .RichContent.is-collapsed img,
+html[data-zhihu-home][data-fold-hide-img] .RichContent-inner.is-collapsed img,
+html[data-zhihu-home][data-fold-hide-img] .ContentItem.is-collapsed img,
+html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent img,
+html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent figure,
+html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent .RichText-figure,
+html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent .RichText-figure-wrapper{display:none!important}
 /* 问题页宽屏修复：清除 hash 容器宽度限制 */
 .App-main{width:100%!important;max-width:none!important}
 .QuestionPage{width:100%!important;max-width:1400px!important;margin:0 auto!important}
@@ -113,7 +131,9 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 `;
 
 const STORAGE_KEY = 'zhihu-theme';
+const HIDE_IMG_KEY = 'zhihu-hide-fold-img';
 const THEME_MENU_CLASS = 'theme-switcher';
+let hideFoldImg = localStorage.getItem(HIDE_IMG_KEY) !== '0';
 
 // ==================== 工具函数 ====================
 const timeCache = new Map();
@@ -186,6 +206,19 @@ const createThemeMenu = () => {
         item.onclick = () => { setTheme(k); menu.classList.remove('show'); };
         menu.appendChild(item);
     });
+
+    // 折叠回答图片开关
+    const divider = document.createElement('div');
+    divider.className = 'theme-switcher-divider';
+    menu.appendChild(divider);
+
+    const toggle = document.createElement('div');
+    toggle.className = 'theme-switcher-item theme-toggle';
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-checked', hideFoldImg ? 'true' : 'false');
+    toggle.innerHTML = '<span>折叠回答图片</span><span class="theme-toggle-switch"></span>';
+    toggle.onclick = e => { e.stopPropagation(); setHideFoldImg(!hideFoldImg); };
+    menu.appendChild(toggle);
     
     container.appendChild(menu);
     container.appendChild(btn);
@@ -193,6 +226,15 @@ const createThemeMenu = () => {
     
     btn.onclick = () => menu.classList.toggle('show');
     document.addEventListener('click', e => { if (!container.contains(e.target)) menu.classList.remove('show'); });
+};
+
+// ==================== 折叠图片开关 ====================
+const setHideFoldImg = on => {
+    hideFoldImg = on;
+    localStorage.setItem(HIDE_IMG_KEY, on ? '1' : '0');
+    document.documentElement.toggleAttribute('data-fold-hide-img', on);
+    const row = document.querySelector('.theme-toggle');
+    if (row) row.setAttribute('aria-checked', on ? 'true' : 'false');
 };
 
 // ==================== 顶栏滚动隐藏 ====================
@@ -268,6 +310,54 @@ const collapseAnswers = () => {
     document.querySelectorAll('.AnswerItem').forEach(collapseItem);
 };
 
+// ==================== 首页折叠回答图片屏蔽 ====================
+const HOME_ATTR = 'data-zhihu-home';
+const FOLDED_ATTR = 'data-zhihu-folded';
+const FEED_ITEMS = '.TopstoryItem, .List-item';
+
+const syncHomeFlag = () => {
+    const r = document.documentElement;
+    if (location.pathname === '/') r.setAttribute(HOME_ATTR, '1');
+    else r.removeAttribute(HOME_ATTR);
+};
+
+const isFoldedItem = item => {
+    if (item.querySelector('.RichContent.is-collapsed, .RichContent-inner.is-collapsed, .ContentItem.is-collapsed')) return true;
+    for (const el of item.querySelectorAll('.ContentItem-more, .RichContent-collapsedText')) {
+        if (el.textContent.includes('阅读全文')) return true;
+    }
+    // 几何兜底：正文被容器裁切即为折叠
+    const inner = item.querySelector('.RichContent-inner, .RichContent');
+    if (!inner) return false;
+    return getComputedStyle(inner).overflowY !== 'visible' && inner.scrollHeight > inner.clientHeight + 8;
+};
+
+const markFolded = root => {
+    if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
+    const scope = root && root.nodeType === Node.ELEMENT_NODE ? root : document;
+    const items = new Set();
+    if (scope.matches?.(FEED_ITEMS)) items.add(scope);
+    const card = scope.closest?.(FEED_ITEMS);
+    if (card) items.add(card);
+    scope.querySelectorAll?.(FEED_ITEMS).forEach(i => items.add(i));
+    items.forEach(item => {
+        if (isFoldedItem(item)) item.setAttribute(FOLDED_ATTR, '1');
+        else item.removeAttribute(FOLDED_ATTR);
+    });
+};
+
+const initFoldWatcher = () => {
+    // 展开/收起后重新判定（文案或类名变化不一定触发子节点观察）
+    document.addEventListener('click', e => {
+        if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
+        const btn = e.target.closest?.('.ContentItem-more, .ContentItem-rightButton, .RichContent-collapsedText');
+        if (!btn) return;
+        const item = btn.closest(FEED_ITEMS);
+        if (item) setTimeout(() => markFolded(item), 300);
+    }, true);
+    window.addEventListener('load', () => markFolded(document));
+};
+
 // ==================== 节点处理 ====================
 const processAddedNodes = mutations => {
     mutations.forEach(m => {
@@ -286,6 +376,7 @@ const processAddedNodes = mutations => {
                 const p = n.closest(C.S.items);
                 if (p) items.push(p);
             }
+            markFolded(n);
             if (!items.length) return;
             items.forEach(item => {
                 processTimeInfo(item);
@@ -313,9 +404,11 @@ const createObservers = () => {
     
     const onUrlChange = () => {
         clearTimeout(urlTimeout);
+        syncHomeFlag();
         urlTimeout = setTimeout(() => { 
             addPublishTime(); 
             blockAds();
+            markFolded(document);
             if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
         }, C.URL_DELAY);
     };
@@ -350,6 +443,11 @@ const init = () => {
     // 恢复保存的主题
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && C.THEMES[saved]) setTheme(saved);
+
+    // 首页折叠回答图片屏蔽
+    syncHomeFlag();
+    document.documentElement.toggleAttribute('data-fold-hide-img', hideFoldImg);
+    initFoldWatcher();
     
     // 创建主题菜单和顶栏滚动隐藏
     createThemeMenu();
@@ -360,6 +458,7 @@ const init = () => {
     setTimeout(() => {
         addPublishTime();
         blockAds();
+        markFolded(document);
         // 问题详情页自动收起回答
         if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
     }, isHome ? C.HOME_DELAY : C.INIT_DELAY);
