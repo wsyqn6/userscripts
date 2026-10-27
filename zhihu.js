@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎极简宽屏·液态玻璃顶栏·主题切换
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      1.6
-// @description  宽屏布局、玻璃顶栏、7种护眼主题、优化可读性、首页折叠回答图片屏蔽
+// @version      1.8
+// @description  宽屏布局、玻璃顶栏、7种护眼主题、优化可读性、首页折叠回答图片屏蔽、长列表性能优化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -321,30 +321,69 @@ const syncHomeFlag = () => {
     else r.removeAttribute(HOME_ATTR);
 };
 
-const isFoldedItem = item => {
-    if (item.querySelector('.RichContent.is-collapsed, .RichContent-inner.is-collapsed, .ContentItem.is-collapsed')) return true;
+const hasFoldClass = item => !!item.querySelector('.RichContent.is-collapsed, .RichContent-inner.is-collapsed, .ContentItem.is-collapsed');
+
+const hasReadMore = item => {
     for (const el of item.querySelectorAll('.ContentItem-more, .RichContent-collapsedText')) {
         if (el.textContent.includes('阅读全文')) return true;
     }
-    // 几何兜底：正文被容器裁切即为折叠
+    return false;
+};
+
+// 几何兜底：正文被容器裁切即为折叠。读布局会强制重排，只在卡片可见时调用
+const isClipped = item => {
     const inner = item.querySelector('.RichContent-inner, .RichContent');
     if (!inner) return false;
     return getComputedStyle(inner).overflowY !== 'visible' && inner.scrollHeight > inner.clientHeight + 8;
 };
 
-const markFolded = root => {
-    if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
+const applyFold = (item, geometry) => {
+    let folded;
+    if (hasFoldClass(item) || hasReadMore(item)) folded = true;
+    else if (geometry) folded = isClipped(item);
+    else folded = item.hasAttribute(FOLDED_ATTR); // 几何未知时保持现状，避免误判闪烁
+    if (folded) item.setAttribute(FOLDED_ATTR, '1');
+    else item.removeAttribute(FOLDED_ATTR);
+};
+
+// 几何检测会强制重排，且离屏卡片尺寸不可靠，改为进入视口后再测一次
+let foldIO = null;
+const watchedItems = new WeakSet();
+
+const onFoldIntersect = entries => {
+    for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        const item = en.target;
+        foldIO.unobserve(item);
+        // 等这一帧完成布局再读尺寸
+        requestAnimationFrame(() => { if (item.isConnected) applyFold(item, true); });
+    }
+};
+
+const probeWhenVisible = item => {
+    if (watchedItems.has(item)) return;
+    watchedItems.add(item);
+    if (!('IntersectionObserver' in window)) { applyFold(item, true); return; }
+    if (!foldIO) foldIO = new IntersectionObserver(onFoldIntersect, { rootMargin: '200px 0px' });
+    foldIO.observe(item);
+};
+
+const collectItems = root => {
     const scope = root && root.nodeType === Node.ELEMENT_NODE ? root : document;
     const items = new Set();
     if (scope.matches?.(FEED_ITEMS)) items.add(scope);
     const card = scope.closest?.(FEED_ITEMS);
     if (card) items.add(card);
     scope.querySelectorAll?.(FEED_ITEMS).forEach(i => items.add(i));
-    items.forEach(item => {
-        if (isFoldedItem(item)) item.setAttribute(FOLDED_ATTR, '1');
-        else item.removeAttribute(FOLDED_ATTR);
-    });
+    return items;
 };
+
+const markItems = (items, geometry = false) => {
+    if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
+    for (const item of items) { applyFold(item, geometry); probeWhenVisible(item); }
+};
+
+const markFolded = (root, geometry = false) => markItems(collectItems(root), geometry);
 
 const initFoldWatcher = () => {
     // 展开/收起后重新判定（文案或类名变化不一定触发子节点观察）
@@ -353,37 +392,52 @@ const initFoldWatcher = () => {
         const btn = e.target.closest?.('.ContentItem-more, .ContentItem-rightButton, .RichContent-collapsedText');
         if (!btn) return;
         const item = btn.closest(FEED_ITEMS);
-        if (item) setTimeout(() => markFolded(item), 300);
+        if (item) setTimeout(() => markFolded(item, true), 300);
     }, true);
     window.addEventListener('load', () => markFolded(document));
 };
 
 // ==================== 节点处理 ====================
-const processAddedNodes = mutations => {
-    mutations.forEach(m => {
-        m.addedNodes.forEach(n => {
-            if (n.nodeType !== Node.ELEMENT_NODE) return;
-            
-            // 广告拦截
-            if (n.matches(C.S.ads)) { n.remove(); return; }
-            const ads = n.querySelectorAll(C.S.ads);
-            for (const ad of ads) ad.remove();
-            for (const c of n.querySelectorAll('.TopstoryItem-isRecommend')) { if (!c.textContent.trim()) c.remove(); }
-            if (n.matches('.TopstoryItem-isRecommend') && !n.textContent.trim()) { n.remove(); return; }
-            
-            const items = n.matches(C.S.items) ? [n] : [...n.querySelectorAll(C.S.items)];
-            if (!items.length) {
-                const p = n.closest(C.S.items);
-                if (p) items.push(p);
-            }
-            markFolded(n);
-            if (!items.length) return;
-            items.forEach(item => {
-                processTimeInfo(item);
-                addArticleTag(item);
-            });
-        });
+// 观察器回调只做入队：DOM 读写合并到下一帧，避免每条 mutation 都触发一轮扫描与强制重排
+let pendingNodes = new Set(), flushHandle = 0;
+
+const flushNodes = () => {
+    flushHandle = 0;
+    const nodes = [...pendingNodes];
+    pendingNodes.clear();
+
+    // 写阶段：广告与空推荐卡
+    for (const n of nodes) {
+        if (!n.isConnected) continue;
+        if (n.matches(C.S.ads)) { n.remove(); continue; }
+        n.querySelectorAll(C.S.ads).forEach(ad => ad.remove());
+        if (n.matches('.TopstoryItem-isRecommend') && !n.textContent.trim()) { n.remove(); continue; }
+        for (const c of n.querySelectorAll('.TopstoryItem-isRecommend')) { if (!c.textContent.trim()) c.remove(); }
+    }
+
+    // 读阶段：整批只收集一次条目集合
+    const items = new Set();
+    for (const n of nodes) {
+        if (!n.isConnected) continue;
+        if (n.matches(C.S.items)) items.add(n);
+        n.querySelectorAll(C.S.items).forEach(i => items.add(i));
+        const p = n.closest(C.S.items);
+        if (p) items.add(p);
+    }
+    if (!items.size) return;
+
+    items.forEach(item => {
+        processTimeInfo(item);
+        addArticleTag(item);
     });
+    markItems(items);
+};
+
+const enqueueNodes = mutations => {
+    for (const m of mutations) {
+        for (const n of m.addedNodes) if (n.nodeType === Node.ELEMENT_NODE) pendingNodes.add(n);
+    }
+    if (!flushHandle) flushHandle = requestAnimationFrame(flushNodes);
 };
 
 // ==================== 广告拦截 ====================
@@ -417,7 +471,7 @@ const createObservers = () => {
     history.replaceState = (...args) => { _replaceState.apply(history, args); onUrlChange(); };
     window.addEventListener('popstate', onUrlChange);
     
-    const contentObserver = new MutationObserver(processAddedNodes);
+    const contentObserver = new MutationObserver(enqueueNodes);
     const mainCol = document.querySelector(C.S.mainCol);
     contentObserver.observe(mainCol || document.body, { childList: true, subtree: true });
     observers.push(contentObserver);
@@ -427,6 +481,9 @@ const createObservers = () => {
 const cleanup = () => {
     observers.forEach(o => o.disconnect());
     observers = [];
+    if (flushHandle) { cancelAnimationFrame(flushHandle); flushHandle = 0; }
+    pendingNodes.clear();
+    if (foldIO) { foldIO.disconnect(); foldIO = null; }
     timeCache.clear();
     document.querySelector('.theme-switcher')?.remove();
     if (_pushState) history.pushState = _pushState;
