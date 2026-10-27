@@ -49,6 +49,7 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
 #list .bl li .img{flex:0 0 min(280px,30vw)!important}
 #list .bl li .img img{width:100%!important;height:auto!important;border-radius:6px!important}
 #list .bl li .c{flex:1!important;min-width:0!important;margin:0!important}
+#top.hide-bg{background:rgba(0,0,0,.1)!important}
 `;
 
     const S = {
@@ -201,6 +202,18 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') document.getElementById('ithome-overlay')?.classList.remove('show');
         });
+
+        let ticking = false;
+        document.addEventListener('scroll', () => {
+            if (!ticking) {
+                requestAnimationFrame(() => {
+                    const top = document.getElementById('top');
+                    if (top) top.classList.toggle('hide-bg', window.scrollY > 0);
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        }, { passive: true });
 
         replacePlaceholders();
         new MutationObserver(muts => {
