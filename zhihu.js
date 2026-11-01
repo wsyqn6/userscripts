@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎极简宽屏·液态玻璃顶栏·主题切换
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      1.8
-// @description  宽屏布局、玻璃顶栏、7种护眼主题、优化可读性、首页折叠回答图片屏蔽、长列表性能优化
+// @version      2.2
+// @description  宽屏布局、玻璃顶栏、7种护眼主题、优化可读性、广告与带货卡屏蔽、首页折叠回答图片屏蔽、首页文章屏蔽、回到顶部、长列表性能优化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -16,12 +16,14 @@
 // ==================== 配置常量 ====================
 const C = {
     MAX_CACHE: 100, HEADER_HIDE: 100, HEADER_SHOW: 160, THROTTLE: 100,
+    TOP_SHOW: 600, MAX_BATCH: 120,
     URL_DELAY: 500, SCROLL_DELAY: 800, INIT_DELAY: 1000, HOME_DELAY: 1500,
     S: {
         mainCol: '.Topstory-mainColumn,.Question-mainColumn,.ContentLayout-mainColumn,.SearchMain',
         items: '.AnswerItem, .List-item, .ArticleItem, .SearchResultItem',
         time: '.ContentItem-time',
-        ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem, .Pc-Business-Card-PcTopFeedBanner, [data-za-detail-view-path-module="RightSideBar"], .GlobalSideBar'
+        // 官方广告位：旧版 feed 广告、右侧栏、商业内容卡（pc-article-answer 文字卡/大图卡）
+        ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem, .Pc-Business-Card-PcTopFeedBanner, [data-za-detail-view-path-module="RightSideBar"], .GlobalSideBar, [class~="pc-article-answer"], [class~="pc-article-answer-big-img"]'
     },
     THEMES: {
         light:    { n:'晨曦白',   bg:'#f7f5f0', tx:'#2e2924', ti:'#1a1712', ac:'#8a7660', bd:'#ddd6cc', cd:'#fefdfa', hd:'rgba(247,245,240,0.72)', lk:'#5b7a9a', hl:'rgba(91,122,154,0.1)' },
@@ -88,7 +90,7 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .theme-switcher-btn{width:48px!important;height:48px!important;border-radius:50%!important;background:var(--cd)!important;border:2px solid var(--bd)!important;box-shadow:0 4px 16px rgba(0,0,0,0.12)!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:20px!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important;color:var(--tx)!important}
 .theme-switcher-btn:hover{transform:scale(1.08) rotate(15deg)!important;box-shadow:0 6px 20px rgba(0,0,0,0.18)!important}
 .theme-switcher-btn:active{transform:scale(1.02)!important}
-.theme-switcher-menu{position:absolute!important;right:0!important;bottom:58px!important;background:var(--cd)!important;border:1px solid var(--bd)!important;border-radius:16px!important;padding:12px 0!important;min-width:160px!important;box-shadow:0 10px 30px rgba(0,0,0,0.15)!important;opacity:0!important;visibility:hidden!important;transform:translateY(10px) scale(0.95)!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important}
+.theme-switcher-menu{position:absolute!important;right:0!important;bottom:58px!important;background:var(--cd)!important;border:1px solid var(--bd)!important;border-radius:16px!important;padding:12px 0!important;min-width:180px!important;max-height:calc(100vh - 160px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;box-shadow:0 10px 30px rgba(0,0,0,0.15)!important;opacity:0!important;visibility:hidden!important;transform:translateY(10px) scale(0.95)!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important}
 .theme-switcher-menu.show{opacity:1!important;visibility:visible!important;transform:translateY(0) scale(1)!important}
 .theme-switcher-item{display:flex!important;align-items:center!important;padding:12px 20px!important;cursor:pointer!important;transition:all 0.2s ease!important;color:var(--tx)!important;font-size:14px!important;position:relative!important}
 .theme-switcher-item:first-child{border-radius:16px 16px 0 0!important}
@@ -98,25 +100,43 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .theme-switcher-item.active::after{content:''!important;position:absolute!important;right:16px!important;width:6px!important;height:6px!important;border-radius:50%!important;background:var(--lk)!important}
 .theme-preview{width:20px!important;height:20px!important;border-radius:6px!important;margin-right:12px!important;border:2px solid rgba(0,0,0,0.08)!important;flex-shrink:0!important;transition:transform 0.2s ease!important}
 .theme-switcher-item:hover .theme-preview{transform:scale(1.15)!important}
-.theme-switcher-menu::after{content:''!important;position:absolute!important;right:18px!important;bottom:-7px!important;width:12px!important;height:12px!important;background:var(--cd)!important;border-right:1px solid var(--bd)!important;border-bottom:1px solid var(--bd)!important;transform:rotate(45deg)!important;box-shadow:2px 2px 4px rgba(0,0,0,0.05)!important}
-/* 菜单内开关 */
+/* 菜单内分组与开关 */
+.theme-group-title{font-size:11px!important;font-weight:600!important;letter-spacing:0.08em!important;color:var(--ac)!important;padding:10px 20px 6px!important}
 .theme-switcher-divider{height:1px!important;margin:8px 12px!important;background:var(--bd)!important}
 .theme-toggle{justify-content:space-between!important;gap:12px!important}
 .theme-toggle:hover{padding-left:20px!important}
 .theme-toggle-switch{position:relative!important;width:34px!important;height:20px!important;border-radius:10px!important;background:var(--bd)!important;flex-shrink:0!important;transition:background 0.2s ease!important}
 .theme-toggle-switch::after{content:''!important;position:absolute!important;top:2px!important;left:2px!important;width:16px!important;height:16px!important;border-radius:50%!important;background:var(--cd)!important;box-shadow:0 1px 3px rgba(0,0,0,0.2)!important;transition:transform 0.2s ease!important}
-html[data-fold-hide-img] .theme-toggle-switch{background:var(--lk)!important}
-html[data-fold-hide-img] .theme-toggle-switch::after{transform:translateX(14px)!important}
+.theme-toggle[aria-checked="true"] .theme-toggle-switch{background:var(--lk)!important}
+.theme-toggle[aria-checked="true"] .theme-toggle-switch::after{transform:translateX(14px)!important}
+/* 回到顶部（与主题按钮同列同风格） */
+.back-to-top{position:fixed!important;right:20px!important;bottom:160px!important;width:48px!important;height:48px!important;padding:0!important;border-radius:50%!important;background:var(--cd)!important;border:2px solid var(--bd)!important;box-shadow:0 4px 16px rgba(0,0,0,0.12)!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;color:var(--tx)!important;z-index:9998!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(8px) scale(0.9)!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important}
+.back-to-top.show{opacity:1!important;visibility:visible!important;pointer-events:auto!important;transform:translateY(0) scale(1)!important}
+.back-to-top:hover{transform:translateY(-2px) scale(1.08)!important;box-shadow:0 6px 20px rgba(0,0,0,0.18)!important;color:var(--lk)!important}
+.back-to-top:active{transform:scale(0.96)!important}
+.back-to-top svg{width:22px!important;height:22px!important;display:block!important;fill:currentColor!important}
+/* 长列表渲染优化：离屏卡片跳过样式/布局/绘制，长期浏览后仍保持滚动流畅
+   估计高度取折叠态常见值，auto 关键字会在卡片首次渲染后记住真实高度 */
+.TopstoryItem{content-visibility:auto!important;contain-intrinsic-size:auto 200px!important}
+.SearchResultItem,.List-item{content-visibility:auto!important;contain-intrinsic-size:auto 400px!important}
+/* content-visibility 自带 paint containment，会裁掉卡片溢出的选中光圈；
+   当前键盘选中的卡片退出 content-visibility，只影响一张卡，无性能代价 */
+.TopstoryItem:focus,.List-item:focus,.List-item:focus-within{content-visibility:visible!important}
 /* 图片样式 */
 .RichContent-inner img,.Post-RichText img,.AnswerCard img{max-width:70%!important;height:auto!important;border-radius:8px!important}
 /* 首页折叠回答内图片隐藏（展开后自动恢复，可开关） */
-html[data-zhihu-home][data-fold-hide-img] .RichContent.is-collapsed img,
-html[data-zhihu-home][data-fold-hide-img] .RichContent-inner.is-collapsed img,
-html[data-zhihu-home][data-fold-hide-img] .ContentItem.is-collapsed img,
-html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent img,
-html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent figure,
-html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent .RichText-figure,
-html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent .RichText-figure-wrapper{display:none!important}
+html[data-zhihu-home][data-hide-fold-img] .RichContent.is-collapsed img,
+html[data-zhihu-home][data-hide-fold-img] .RichContent-inner.is-collapsed img,
+html[data-zhihu-home][data-hide-fold-img] .ContentItem.is-collapsed img,
+html[data-zhihu-home][data-hide-fold-img] [data-zhihu-folded] .RichContent img,
+html[data-zhihu-home][data-hide-fold-img] [data-zhihu-folded] .RichContent figure,
+html[data-zhihu-home][data-hide-fold-img] [data-zhihu-folded] .RichContent .RichText-figure,
+html[data-zhihu-home][data-hide-fold-img] [data-zhihu-folded] .RichContent .RichText-figure-wrapper{display:none!important}
+/* 首页文章卡屏蔽（可开关） */
+html[data-zhihu-home][data-hide-article] [data-zhihu-article]{display:none!important}
+/* 带货商品卡屏蔽（可开关）：知乎好物推荐/商业化组件，正常回答不会出现 */
+html[data-hide-ecommerce] .RichText-Ecommerce,
+html[data-hide-ecommerce] [class*="ecommerce-ad"]{display:none!important}
 /* 问题页宽屏修复：清除 hash 容器宽度限制 */
 .App-main{width:100%!important;max-width:none!important}
 .QuestionPage{width:100%!important;max-width:1400px!important;margin:0 auto!important}
@@ -131,9 +151,14 @@ html[data-zhihu-home][data-fold-hide-img] [data-zhihu-folded] .RichContent .Rich
 `;
 
 const STORAGE_KEY = 'zhihu-theme';
-const HIDE_IMG_KEY = 'zhihu-hide-fold-img';
 const THEME_MENU_CLASS = 'theme-switcher';
-let hideFoldImg = localStorage.getItem(HIDE_IMG_KEY) !== '0';
+// 功能开关配置：新增开关只加一条，菜单与状态持久化自动生效
+const TOGGLES = [
+    { label: '折叠回答图片', attr: 'data-hide-fold-img', key: 'zhihu-hide-fold-img', def: true },
+    { label: '屏蔽首页文章', attr: 'data-hide-article', key: 'zhihu-hide-article', def: false },
+    { label: '屏蔽商品卡', attr: 'data-hide-ecommerce', key: 'zhihu-hide-ecommerce', def: true }
+];
+const readToggle = t => { const v = localStorage.getItem(t.key); return v === null ? t.def : v === '1'; };
 
 // ==================== 工具函数 ====================
 const timeCache = new Map();
@@ -196,7 +221,16 @@ const createThemeMenu = () => {
     
     const menu = document.createElement('div');
     menu.className = 'theme-switcher-menu';
-    
+
+    const groupTitle = text => {
+        const el = document.createElement('div');
+        el.className = 'theme-group-title';
+        el.textContent = text;
+        return el;
+    };
+
+    menu.appendChild(groupTitle('主题'));
+
     Object.keys(C.THEMES).forEach(k => {
         const t = C.THEMES[k];
         const item = document.createElement('div');
@@ -207,19 +241,24 @@ const createThemeMenu = () => {
         menu.appendChild(item);
     });
 
-    // 折叠回答图片开关
+    // 功能开关分组
     const divider = document.createElement('div');
     divider.className = 'theme-switcher-divider';
     menu.appendChild(divider);
+    menu.appendChild(groupTitle('功能'));
 
-    const toggle = document.createElement('div');
-    toggle.className = 'theme-switcher-item theme-toggle';
-    toggle.setAttribute('role', 'switch');
-    toggle.setAttribute('aria-checked', hideFoldImg ? 'true' : 'false');
-    toggle.innerHTML = '<span>折叠回答图片</span><span class="theme-toggle-switch"></span>';
-    toggle.onclick = e => { e.stopPropagation(); setHideFoldImg(!hideFoldImg); };
-    menu.appendChild(toggle);
-    
+    TOGGLES.forEach(t => {
+        const on = readToggle(t);
+        const row = document.createElement('div');
+        row.className = 'theme-switcher-item theme-toggle';
+        row.dataset.toggle = t.key;
+        row.setAttribute('role', 'switch');
+        row.setAttribute('aria-checked', on ? 'true' : 'false');
+        row.innerHTML = `<span>${t.label}</span><span class="theme-toggle-switch"></span>`;
+        row.onclick = e => { e.stopPropagation(); setToggle(t, !readToggle(t)); };
+        menu.appendChild(row);
+    });
+
     container.appendChild(menu);
     container.appendChild(btn);
     document.body.appendChild(container);
@@ -228,31 +267,57 @@ const createThemeMenu = () => {
     document.addEventListener('click', e => { if (!container.contains(e.target)) menu.classList.remove('show'); });
 };
 
-// ==================== 折叠图片开关 ====================
-const setHideFoldImg = on => {
-    hideFoldImg = on;
-    localStorage.setItem(HIDE_IMG_KEY, on ? '1' : '0');
-    document.documentElement.toggleAttribute('data-fold-hide-img', on);
-    const row = document.querySelector('.theme-toggle');
+// ==================== 功能开关 ====================
+const setToggle = (t, on) => {
+    localStorage.setItem(t.key, on ? '1' : '0');
+    document.documentElement.toggleAttribute(t.attr, on);
+    const row = document.querySelector(`.theme-toggle[data-toggle="${t.key}"]`);
     if (row) row.setAttribute('aria-checked', on ? 'true' : 'false');
 };
 
-// ==================== 顶栏滚动隐藏 ====================
-const initHeaderScrollHide = () => {
+const applyToggles = () => TOGGLES.forEach(t => document.documentElement.toggleAttribute(t.attr, readToggle(t)));
+
+// ==================== 滚动联动：顶栏隐藏 + 回到顶部 ====================
+let backTopBtn = null;
+
+const createBackToTop = () => {
+    const btn = document.createElement('button');
+    btn.className = 'back-to-top';
+    btn.setAttribute('aria-label', '回到顶部');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5 4.5 13l1.6 1.6L11 9.7V20h2V9.7l4.9 4.9 1.6-1.6z"/></svg>';
+    btn.onclick = () => {
+        const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+    };
+    document.body.appendChild(btn);
+    return btn;
+};
+
+const initScrollEffects = () => {
     const header = document.querySelector('.AppHeader');
-    if (!header) return;
-    let lastY = window.scrollY, isHidden = false, upDist = 0;
+    backTopBtn = createBackToTop();
+    let lastY = window.scrollY, hidden = false, upDist = 0, shownTop = false;
+
     const update = throttle(() => {
         const cy = window.scrollY, delta = lastY - cy;
+
+        // 回到顶部按钮：单向阈值，避免滚动中反复切换
+        const shouldShowTop = cy > C.TOP_SHOW;
+        if (shouldShowTop !== shownTop) { shownTop = shouldShowTop; backTopBtn.classList.toggle('show', shownTop); }
+
+        if (!header) { lastY = cy; return; }
         // 向下滚动且超过阈值时隐藏顶栏
-        if (cy > lastY && cy > C.HEADER_HIDE && !isHidden) { header.classList.add('header--hidden'); isHidden = true; upDist = 0; }
+        if (cy > lastY && cy > C.HEADER_HIDE && !hidden) { header.classList.add('header--hidden'); hidden = true; upDist = 0; }
         // 向上滚动累计达到阈值时显示顶栏
-        else if (delta > 0 && isHidden) { upDist += delta; if (upDist >= C.HEADER_SHOW) { header.classList.remove('header--hidden'); isHidden = false; upDist = 0; } }
+        else if (delta > 0 && hidden) { upDist += delta; if (upDist >= C.HEADER_SHOW) { header.classList.remove('header--hidden'); hidden = false; upDist = 0; } }
         // 继续向下滚动时重置向上距离
-        else if (delta <= 0 && isHidden) upDist = 0;
+        else if (delta <= 0 && hidden) upDist = 0;
         lastY = cy;
     }, C.THROTTLE);
+
     window.addEventListener('scroll', update, { passive: true });
+    // 首屏可能已在下方（刷新后恢复位置）
+    if (window.scrollY > C.TOP_SHOW) { shownTop = true; backTopBtn.classList.add('show'); }
 };
 
 // ==================== 发布时间 ====================
@@ -321,14 +386,16 @@ const syncHomeFlag = () => {
     else r.removeAttribute(HOME_ATTR);
 };
 
-const hasFoldClass = item => !!item.querySelector('.RichContent.is-collapsed, .RichContent-inner.is-collapsed, .ContentItem.is-collapsed');
-
 const hasReadMore = item => {
     for (const el of item.querySelectorAll('.ContentItem-more, .RichContent-collapsedText')) {
         if (el.textContent.includes('阅读全文')) return true;
     }
     return false;
 };
+
+// 折叠判定：类名优先短路，再查"阅读全文"文案（每张卡最多各一次查询）
+const isFolded = item =>
+    item.querySelector('.RichContent.is-collapsed,.RichContent-inner.is-collapsed,.ContentItem.is-collapsed') ? true : hasReadMore(item);
 
 // 几何兜底：正文被容器裁切即为折叠。读布局会强制重排，只在卡片可见时调用
 const isClipped = item => {
@@ -339,7 +406,7 @@ const isClipped = item => {
 
 const applyFold = (item, geometry) => {
     let folded;
-    if (hasFoldClass(item) || hasReadMore(item)) folded = true;
+    if (isFolded(item)) folded = true;
     else if (geometry) folded = isClipped(item);
     else folded = item.hasAttribute(FOLDED_ATTR); // 几何未知时保持现状，避免误判闪烁
     if (folded) item.setAttribute(FOLDED_ATTR, '1');
@@ -378,9 +445,18 @@ const collectItems = root => {
     return items;
 };
 
+const ARTICLE_ATTR = 'data-zhihu-article';
+
+const isArticleItem = item => item.matches('.ArticleItem') || !!item.querySelector('.ArticleItem');
+
 const markItems = (items, geometry = false) => {
     if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
-    for (const item of items) { applyFold(item, geometry); probeWhenVisible(item); }
+    for (const item of items) {
+        // 文章卡只打标供 CSS 屏蔽，无需折叠判定
+        if (isArticleItem(item)) { item.setAttribute(ARTICLE_ATTR, '1'); continue; }
+        applyFold(item, geometry);
+        probeWhenVisible(item);
+    }
 };
 
 const markFolded = (root, geometry = false) => markItems(collectItems(root), geometry);
@@ -398,13 +474,29 @@ const initFoldWatcher = () => {
 };
 
 // ==================== 节点处理 ====================
-// 观察器回调只做入队：DOM 读写合并到下一帧，避免每条 mutation 都触发一轮扫描与强制重排
+// 观察器回调只做入队：DOM 读写合并到下一帧，每帧限量处理，避免一次性长任务
 let pendingNodes = new Set(), flushHandle = 0;
+
+// 取出本帧要处理的节点；父子同批时只保留最外层，避免同一子树被反复扫描
+const takeBatch = () => {
+    const batch = [];
+    for (const n of pendingNodes) {
+        if (batch.length >= C.MAX_BATCH) break;
+        pendingNodes.delete(n);
+        if (n.isConnected) batch.push(n);
+    }
+    if (batch.length < 2) return batch;
+    const set = new Set(batch);
+    return batch.filter(n => {
+        for (let p = n.parentElement; p; p = p.parentElement) if (set.has(p)) return false;
+        return true;
+    });
+};
 
 const flushNodes = () => {
     flushHandle = 0;
-    const nodes = [...pendingNodes];
-    pendingNodes.clear();
+    const nodes = takeBatch();
+    if (!nodes.length) return;
 
     // 写阶段：广告与空推荐卡
     for (const n of nodes) {
@@ -424,13 +516,14 @@ const flushNodes = () => {
         const p = n.closest(C.S.items);
         if (p) items.add(p);
     }
-    if (!items.size) return;
-
-    items.forEach(item => {
+    for (const item of items) {
         processTimeInfo(item);
         addArticleTag(item);
-    });
-    markItems(items);
+    }
+    if (items.size) markItems(items);
+
+    // 还有积压就留到下一帧，保持每帧工作量可控
+    if (pendingNodes.size && !flushHandle) flushHandle = requestAnimationFrame(flushNodes);
 };
 
 const enqueueNodes = mutations => {
@@ -448,6 +541,15 @@ const blockAds = () => {
     });
 };
 
+// 空闲时段执行全量维护，避免与知乎自身的首屏渲染抢主线程
+const idle = fn => ('requestIdleCallback' in window ? requestIdleCallback(fn, { timeout: 1200 }) : setTimeout(fn, 0));
+
+const maintain = () => idle(() => {
+    addPublishTime();
+    blockAds();
+    markFolded(document);
+});
+
 // ==================== 观察者 ====================
 let observers = [], _pushState, _replaceState;
 
@@ -460,9 +562,7 @@ const createObservers = () => {
         clearTimeout(urlTimeout);
         syncHomeFlag();
         urlTimeout = setTimeout(() => { 
-            addPublishTime(); 
-            blockAds();
-            markFolded(document);
+            maintain();
             if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
         }, C.URL_DELAY);
     };
@@ -486,6 +586,8 @@ const cleanup = () => {
     if (foldIO) { foldIO.disconnect(); foldIO = null; }
     timeCache.clear();
     document.querySelector('.theme-switcher')?.remove();
+    backTopBtn?.remove();
+    backTopBtn = null;
     if (_pushState) history.pushState = _pushState;
     if (_replaceState) history.replaceState = _replaceState;
 };
@@ -497,25 +599,23 @@ const init = () => {
     style.textContent = CSS;
     document.head.appendChild(style);
     
-    // 恢复保存的主题
+    // 还原主题；无记录时也走一遍 setTheme，确保 CSS 变量就位
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && C.THEMES[saved]) setTheme(saved);
+    setTheme(C.THEMES[saved] ? saved : 'light');
 
-    // 首页折叠回答图片屏蔽
+    // 首页折叠回答图片屏蔽 + 功能开关
     syncHomeFlag();
-    document.documentElement.toggleAttribute('data-fold-hide-img', hideFoldImg);
+    applyToggles();
     initFoldWatcher();
     
-    // 创建主题菜单和顶栏滚动隐藏
+    // 创建主题菜单与滚动联动（顶栏隐藏 + 回到顶部）
     createThemeMenu();
-    initHeaderScrollHide();
+    initScrollEffects();
     
     // 延迟处理页面内容（等待知乎数据加载）
-    const isHome = location.href === 'https://www.zhihu.com/' || location.href === 'https://www.zhihu.com';
+    const isHome = location.pathname === '/' || location.pathname === '';
     setTimeout(() => {
-        addPublishTime();
-        blockAds();
-        markFolded(document);
+        maintain();
         // 问题详情页自动收起回答
         if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
     }, isHome ? C.HOME_DELAY : C.INIT_DELAY);
@@ -524,8 +624,9 @@ const init = () => {
     createObservers();
 };
 
-// 页面卸载时清理资源
-window.addEventListener('unload', cleanup);
+
+// 页面卸载时清理资源（进入 bfcache 时不清理，便于返回后继续生效）
+window.addEventListener('pagehide', e => { if (!e.persisted) cleanup(); });
 // DOM 就绪后初始化
 document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init) : init();
 })();
