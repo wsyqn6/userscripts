@@ -1,1 +1,18 @@
+# 本地测试页（直接打开调试的页面快照）
 *.html
+
+# 调试产物
+*.log
+shot*.png
+
+# 依赖
+node_modules/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# IDE 辅助目录（本地缓存，不入库）
+.codebuddy/
