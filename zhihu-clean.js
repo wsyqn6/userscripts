@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎净化
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      2.3
-// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、回到顶部、方向键切图、长列表性能优化
+// @version      2.4
+// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、回到顶部、方向键切图、未展开显示回答时间、长列表性能优化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -159,7 +159,8 @@ const TOGGLES = [
     { label: '折叠回答图片', attr: 'data-hide-fold-img', key: 'zhihu-hide-fold-img', def: true },
     { label: '屏蔽首页文章', attr: 'data-hide-article', key: 'zhihu-hide-article', def: false },
     { label: '屏蔽商品卡', attr: 'data-hide-ecommerce', key: 'zhihu-hide-ecommerce', def: true },
-    { label: '方向键切图', attr: 'data-key-img', key: 'zhihu-key-img', def: true }
+    { label: '方向键切图', attr: 'data-key-img', key: 'zhihu-key-img', def: true },
+    { label: '未展开也显示时间', attr: 'data-time-api', key: 'zhihu-time-api', def: true }
 ];
 const readToggle = t => { const v = localStorage.getItem(t.key); return v === null ? t.def : v === '1'; };
 
@@ -276,6 +277,8 @@ const setToggle = (t, on) => {
     document.documentElement.toggleAttribute(t.attr, on);
     const row = document.querySelector(`.theme-toggle[data-toggle="${t.key}"]`);
     if (row) row.setAttribute('aria-checked', on ? 'true' : 'false');
+    // 时间补全开关打开时，已渲染的卡片还没发起过探测，补一遍
+    if (t.attr === 'data-time-api' && on) addPublishTime();
 };
 
 const applyToggles = () => TOGGLES.forEach(t => document.documentElement.toggleAttribute(t.attr, readToggle(t)));
@@ -414,34 +417,151 @@ const initImageKeys = () => {
 };
 
 // ==================== 发布时间 ====================
-const processTimeInfo = item => {
-    // 跳过已处理的项目
-    if (item.querySelector('.custom-publish-time')) return;
-    // 关键修复：问题详情页中 .List-item 包含 .AnswerItem，避免重复添加时间
-    if (item.classList.contains('List-item') && item.querySelector('.AnswerItem')) return;
-    
-    const timeEl = item.querySelector(C.S.time);
-    if (!timeEl) return;
-    const link = timeEl.querySelector('a');
-    if (!link) return;
+// 知乎收起回答时会把 .ContentItem-time 整个移除，折叠态 DOM 里再无任何时间文本。
+// 因此：展开态照旧读 DOM（零请求）；读不到时按 item 的 name 属性（回答 id）
+// 走 /api/v4/answers/{id} 补一次，结果按 id 缓存并持久化，之后不再请求。
+const TIME_KEY = 'zhihu-time-cache';
+const TIME_KEEP = 800;          // 本地缓存上限，超出丢最早的
+const TIME_CONCURRENCY = 2;
 
-    // 从 tooltip 或 aria-label 获取发布时间，从文本获取编辑时间
-    const tooltip = link.getAttribute('data-tooltip') || link.getAttribute('aria-label') || '';
-    const text = link.textContent.trim();
-    const pm = tooltip.match(/发布于(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/);
-    const em = text.match(/编辑于(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/);
+const timeStore = new Map();     // `answer:${id}` -> { c: 发布秒, u: 更新秒 }
+const timePending = new Set();   // 已在队列/请求中
+const timeDead = new Set();      // 接口明确失败，本次页面生命周期内不再重试
+const timeQueue = [];
+const timeWatched = new WeakSet();
 
-    let str = '';
-    if (pm) str += `发布于 ${formatTime(pm[1])}`;
-    if (em) str += ` · 编辑于 ${formatTime(em[1])}`;
-    if (!str.trim()) return;
+let timeActive = 0, timeSaveTimer = 0, timeIO = null;
 
-    // 创建自定义时间元素并插入
-    const div = document.createElement('div');
-    div.className = 'custom-publish-time';
-    div.textContent = str.replace(/^ · /, '');
-    item.prepend(div);
+// 秒或时间字符串统一成秒；拿不到返回 0
+const toSec = t => {
+    if (!t) return 0;
+    if (typeof t === 'number') return t > 1e12 ? Math.floor(t / 1000) : Math.floor(t);
+    if (/^\d+$/.test(t)) return Math.floor(Number(t));
+    const d = new Date(t.replace(/-/g, '/'));
+    return isNaN(d) ? 0 : Math.floor(d.getTime() / 1000);
 };
+
+try {
+    const saved = JSON.parse(localStorage.getItem(TIME_KEY) || '{}');
+    for (const k in saved) {
+        const v = saved[k];
+        if (Array.isArray(v) && v[0]) timeStore.set(k, { c: v[0], u: v[1] || 0 });
+    }
+} catch {}
+
+const saveTimeCache = () => {
+    if (timeSaveTimer) return;
+    timeSaveTimer = setTimeout(() => {
+        timeSaveTimer = 0;
+        const out = {};
+        for (const [k, v] of [...timeStore].slice(-TIME_KEEP)) out[k] = [v.c, v.u];
+        try { localStorage.setItem(TIME_KEY, JSON.stringify(out)); } catch {}
+    }, 2000);
+};
+
+// 回答卡上的 name 属性就是回答 id，折叠态也在
+const answerId = item => {
+    const id = item.getAttribute('name');
+    return id && /^\d+$/.test(id) ? id : null;
+};
+
+// 渲染态的真实文案；展开态 DOM 才有
+const renderTime = (item, c, u) => {
+    let str = '';
+    if (c) str = `发布于 ${formatTime(c)}`;
+    if (u && (!c || u - c > 60)) str += `${c ? ' · ' : ''}编辑于 ${formatTime(u)}`;
+    if (!str) return;
+    let div = item.querySelector('.custom-publish-time');
+    if (!div) {
+        div = document.createElement('div');
+        div.className = 'custom-publish-time';
+        item.prepend(div);
+    }
+    if (div.textContent !== str) div.textContent = str;
+};
+
+// 展开态直接从 DOM 取，取到就进缓存，收起后可以照着重绘
+const readDomTime = item => {
+    const link = item.querySelector(C.S.time + ' a');
+    if (!link) return null;
+    const tip = link.getAttribute('data-tooltip') || link.getAttribute('aria-label') || '';
+    const c = toSec((tip.match(/发布于(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/) || [])[1]);
+    const u = toSec((link.textContent.match(/编辑于(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/) || [])[1]);
+    return c || u ? { c, u } : null;
+};
+
+const paintTimeById = id => {
+    document.querySelectorAll(`[name="${id}"]`).forEach(el => processTimeInfo(el));
+};
+
+const pumpTimeQueue = () => {
+    while (timeActive < TIME_CONCURRENCY && timeQueue.length) {
+        const job = timeQueue.shift();
+        timeActive++;
+        fetch(`/api/v4/answers/${job.id}?include=created_time,updated_time`, {
+            headers: { 'x-requested-with': 'fetch' }, credentials: 'include'
+        })
+            .then(r => (r.ok ? r.json() : null))
+            .then(j => {
+                const c = j && toSec(j.created_time);
+                if (!c) { timeDead.add(job.key); return; }
+                timeStore.set(job.key, { c, u: toSec(j.updated_time) });
+                saveTimeCache();
+                paintTimeById(job.id);
+            })
+            .catch(() => timeDead.add(job.key))
+            .finally(() => { timeActive--; timePending.delete(job.key); pumpTimeQueue(); });
+    }
+};
+
+const requestTime = id => {
+    const key = 'answer:' + id;
+    if (timeStore.has(key) || timePending.has(key) || timeDead.has(key)) return;
+    timePending.add(key);
+    timeQueue.push({ id, key });
+    pumpTimeQueue();
+};
+
+// 只有快进入视口的卡片才发请求，避免一次性为上百张卡刷接口
+const onTimeIntersect = entries => {
+    for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        timeIO.unobserve(en.target);
+        const id = answerId(en.target);
+        if (id) requestTime(id);
+    }
+};
+
+const probeTime = item => {
+    if (!document.documentElement.hasAttribute('data-time-api')) return;
+    if (timeWatched.has(item)) return;
+    const id = answerId(item);
+    if (!id) return;
+    timeWatched.add(item);
+    if (!('IntersectionObserver' in window)) return requestTime(id);
+    if (!timeIO) timeIO = new IntersectionObserver(onTimeIntersect, { rootMargin: '600px 0px' });
+    timeIO.observe(item);
+};
+
+const processTimeInfo = item => {
+    // 问题详情页 .List-item 包着 .AnswerItem，只在最内层处理
+    if (item.classList.contains('List-item') && item.querySelector('.AnswerItem')) return;
+
+    const dom = readDomTime(item);
+    const id = answerId(item);
+    if (dom) {
+        if (id) { timeStore.set('answer:' + id, dom); saveTimeCache(); }
+        renderTime(item, dom.c, dom.u);
+        return;
+    }
+    const hit = id && timeStore.get('answer:' + id);
+    if (hit) return renderTime(item, hit.c, hit.u);
+    probeTime(item);
+};
+
+// 调试钩子：localStorage 里 zhihu-debug=1 才暴露。后台标签页 IO 不回调，
+// 靠它手动驱动补全链路（正常浏览下不会存在）
+if (localStorage.getItem('zhihu-debug') === '1') window.__zhihuTime = { requestTime, paintTimeById, timeStore, processTimeInfo };
 
 // ==================== 文章标签 ====================
 const addArticleTag = item => {
@@ -465,7 +585,10 @@ const collapseItem = item => {
 };
 
 const collapseAnswers = () => {
+    // 收起会让知乎删掉时间节点，先把展开态读到的时间存进缓存，收起后照着重绘
+    addPublishTime();
     document.querySelectorAll('.AnswerItem').forEach(collapseItem);
+    setTimeout(addPublishTime, 600);
 };
 
 // ==================== 首页折叠回答图片屏蔽 ====================
@@ -567,8 +690,11 @@ const initFoldWatcher = () => {
 };
 
 // ==================== 节点处理 ====================
-// 观察器回调只做入队：DOM 读写合并到下一帧，每帧限量处理，避免一次性长任务
+// 观察器回调只做入队：DOM 读写合并到下一轮，每轮限量处理，避免一次性长任务。
+// 用定时器而非 rAF——后台标签页 rAF 不触发，处理会一直挂起
 let pendingNodes = new Set(), flushHandle = 0;
+
+const scheduleFlush = () => { flushHandle = setTimeout(flushNodes, 16); };
 
 // 取出本帧要处理的节点；父子同批时只保留最外层，避免同一子树被反复扫描
 const takeBatch = () => {
@@ -615,15 +741,15 @@ const flushNodes = () => {
     }
     if (items.size) markItems(items);
 
-    // 还有积压就留到下一帧，保持每帧工作量可控
-    if (pendingNodes.size && !flushHandle) flushHandle = requestAnimationFrame(flushNodes);
+    // 还有积压就留到下一轮，保持单次工作量可控
+    if (pendingNodes.size && !flushHandle) scheduleFlush();
 };
 
 const enqueueNodes = mutations => {
     for (const m of mutations) {
         for (const n of m.addedNodes) if (n.nodeType === Node.ELEMENT_NODE) pendingNodes.add(n);
     }
-    if (!flushHandle) flushHandle = requestAnimationFrame(flushNodes);
+    if (!flushHandle) scheduleFlush();
 };
 
 // ==================== 广告拦截 ====================
@@ -674,9 +800,13 @@ const createObservers = () => {
 const cleanup = () => {
     observers.forEach(o => o.disconnect());
     observers = [];
-    if (flushHandle) { cancelAnimationFrame(flushHandle); flushHandle = 0; }
+    if (flushHandle) { clearTimeout(flushHandle); flushHandle = 0; }
     pendingNodes.clear();
     if (foldIO) { foldIO.disconnect(); foldIO = null; }
+    if (timeIO) { timeIO.disconnect(); timeIO = null; }
+    if (timeSaveTimer) { clearTimeout(timeSaveTimer); timeSaveTimer = 0; }
+    timeQueue.length = 0;
+    timeStore.clear();
     timeCache.clear();
     document.querySelector('.theme-switcher')?.remove();
     backTopBtn?.remove();
