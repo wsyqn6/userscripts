@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎净化
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      2.4
-// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、回到顶部、方向键切图、未展开显示回答时间、长列表性能优化
+// @version      2.6
+// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、方向键切图、未展开显示回答时间、长列表性能优化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -90,25 +90,26 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .theme-switcher-btn{width:48px!important;height:48px!important;border-radius:50%!important;background:var(--cd)!important;border:2px solid var(--bd)!important;box-shadow:0 4px 16px rgba(0,0,0,0.12)!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:20px!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important;color:var(--tx)!important}
 .theme-switcher-btn:hover{transform:scale(1.08) rotate(15deg)!important;box-shadow:0 6px 20px rgba(0,0,0,0.18)!important}
 .theme-switcher-btn:active{transform:scale(1.02)!important}
-.theme-switcher-menu{position:absolute!important;right:0!important;bottom:58px!important;background:var(--cd)!important;border:1px solid var(--bd)!important;border-radius:16px!important;padding:12px 0!important;min-width:180px!important;max-height:calc(100vh - 160px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;box-shadow:0 10px 30px rgba(0,0,0,0.15)!important;opacity:0!important;visibility:hidden!important;transform:translateY(10px) scale(0.95)!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important}
+/* 菜单定宽定高模型：主题走 4 列色块网格，开关走紧凑单行，整块约 360px 高，
+   不再随功能增加而线性变长（旧的逐行列表 7 主题 + 5 开关已有 682px） */
+.theme-switcher-menu{position:absolute!important;right:0!important;bottom:58px!important;width:252px!important;background:var(--cd)!important;border:1px solid var(--bd)!important;border-radius:14px!important;padding:8px 0 6px!important;max-height:calc(100vh - 160px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;box-shadow:0 10px 30px rgba(0,0,0,0.15)!important;opacity:0!important;visibility:hidden!important;transform:translateY(10px) scale(0.95)!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important}
 .theme-switcher-menu.show{opacity:1!important;visibility:visible!important;transform:translateY(0) scale(1)!important}
-.theme-switcher-item{display:flex!important;align-items:center!important;padding:12px 20px!important;cursor:pointer!important;transition:all 0.2s ease!important;color:var(--tx)!important;font-size:14px!important;position:relative!important}
-.theme-switcher-item:first-child{border-radius:16px 16px 0 0!important}
-.theme-switcher-item:last-child{border-radius:0 0 16px 16px!important}
-.theme-switcher-item:hover{background:rgba(0,0,0,0.04)!important;padding-left:24px!important}
-.theme-switcher-item.active{background:var(--hl)!important;color:var(--lk)!important;font-weight:600!important}
-.theme-switcher-item.active::after{content:''!important;position:absolute!important;right:16px!important;width:6px!important;height:6px!important;border-radius:50%!important;background:var(--lk)!important}
-.theme-preview{width:20px!important;height:20px!important;border-radius:6px!important;margin-right:12px!important;border:2px solid rgba(0,0,0,0.08)!important;flex-shrink:0!important;transition:transform 0.2s ease!important}
-.theme-switcher-item:hover .theme-preview{transform:scale(1.15)!important}
+.theme-grid{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:2px!important;padding:0 8px 4px!important}
+.theme-chip{display:flex!important;flex-direction:column!important;align-items:center!important;gap:5px!important;padding:7px 0 8px!important;border-radius:10px!important;cursor:pointer!important;font-size:11px!important;line-height:1!important;color:var(--tx)!important;transition:background 0.15s ease,color 0.15s ease!important}
+.theme-chip:hover{background:rgba(0,0,0,0.05)!important}
+.theme-chip.active{background:var(--hl)!important;color:var(--lk)!important;font-weight:600!important}
+.theme-preview{width:26px!important;height:26px!important;border-radius:9px!important;border:2px solid rgba(0,0,0,0.08)!important;flex-shrink:0!important;transition:transform 0.2s ease,box-shadow 0.2s ease!important}
+.theme-chip:hover .theme-preview{transform:scale(1.1)!important}
+.theme-chip.active .theme-preview{box-shadow:0 0 0 2px var(--lk)!important}
 /* 菜单内分组与开关 */
-.theme-group-title{font-size:11px!important;font-weight:600!important;letter-spacing:0.08em!important;color:var(--ac)!important;padding:10px 20px 6px!important}
-.theme-switcher-divider{height:1px!important;margin:8px 12px!important;background:var(--bd)!important}
-.theme-toggle{justify-content:space-between!important;gap:12px!important}
-.theme-toggle:hover{padding-left:20px!important}
-.theme-toggle-switch{position:relative!important;width:34px!important;height:20px!important;border-radius:10px!important;background:var(--bd)!important;flex-shrink:0!important;transition:background 0.2s ease!important}
-.theme-toggle-switch::after{content:''!important;position:absolute!important;top:2px!important;left:2px!important;width:16px!important;height:16px!important;border-radius:50%!important;background:var(--cd)!important;box-shadow:0 1px 3px rgba(0,0,0,0.2)!important;transition:transform 0.2s ease!important}
+.theme-group-title{font-size:11px!important;font-weight:600!important;letter-spacing:0.08em!important;color:var(--ac)!important;padding:6px 16px!important}
+.theme-switcher-divider{height:1px!important;margin:7px 12px!important;background:var(--bd)!important}
+.theme-toggle{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;padding:7px 16px!important;cursor:pointer!important;font-size:13px!important;color:var(--tx)!important;transition:background 0.15s ease!important}
+.theme-toggle:hover{background:rgba(0,0,0,0.04)!important}
+.theme-toggle-switch{position:relative!important;width:30px!important;height:18px!important;border-radius:9px!important;background:var(--bd)!important;flex-shrink:0!important;transition:background 0.2s ease!important}
+.theme-toggle-switch::after{content:''!important;position:absolute!important;top:2px!important;left:2px!important;width:14px!important;height:14px!important;border-radius:50%!important;background:var(--cd)!important;box-shadow:0 1px 3px rgba(0,0,0,0.2)!important;transition:transform 0.2s ease!important}
 .theme-toggle[aria-checked="true"] .theme-toggle-switch{background:var(--lk)!important}
-.theme-toggle[aria-checked="true"] .theme-toggle-switch::after{transform:translateX(14px)!important}
+.theme-toggle[aria-checked="true"] .theme-toggle-switch::after{transform:translateX(12px)!important}
 /* 回到顶部（与主题按钮同列同风格） */
 .back-to-top{position:fixed!important;right:20px!important;bottom:160px!important;width:48px!important;height:48px!important;padding:0!important;border-radius:50%!important;background:var(--cd)!important;border:2px solid var(--bd)!important;box-shadow:0 4px 16px rgba(0,0,0,0.12)!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;color:var(--tx)!important;z-index:9998!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(8px) scale(0.9)!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important}
 .back-to-top.show{opacity:1!important;visibility:visible!important;pointer-events:auto!important;transform:translateY(0) scale(1)!important}
@@ -145,6 +146,14 @@ html[data-hide-ecommerce] [class*="ecommerce-ad"]{display:none!important}
 .QuestionPage>div:not(.AnswerFormPortalContainer){width:100%!important;max-width:100%!important}
 .QuestionPage>div:not(.AnswerFormPortalContainer)>div:first-child{width:100%!important}
 .Question-mainColumn{width:100%!important;max-width:none!important}
+/* 精简导航（可开关）：知乎顶栏类名是 CSS-in-JS 哈希，改按 href 白名单保留
+   关注 / 推荐 / 热榜 / 消息，其余入口（专栏、圈子、AI Works、故事、直答、私信、
+   创作中心）与多余分隔块全部隐藏 */
+html[data-hide-nav] .AppHeader nav > a:not([href$="/follow"]):not([href$="/hot"]):not([href$="zhihu.com/"]),
+html[data-hide-nav] .AppHeader nav > :not(a),
+html[data-hide-nav] .AppHeader a[href*="zhida.zhihu.com"],
+html[data-hide-nav] .AppHeader [href$="/messages"],
+html[data-hide-nav] .AppHeader a[href$="/creator"]:not(.AppHeader-profileMenu a){display:none!important}
 /* 问题头宽屏 */
 .QuestionHeader-content{width:100%!important;max-width:none!important;padding:16px 0!important}
 .QuestionHeader-main{flex:1!important;min-width:0!important}
@@ -153,14 +162,14 @@ html[data-hide-ecommerce] [class*="ecommerce-ad"]{display:none!important}
 `;
 
 const STORAGE_KEY = 'zhihu-theme';
-const THEME_MENU_CLASS = 'theme-switcher';
 // 功能开关配置：新增开关只加一条，菜单与状态持久化自动生效
 const TOGGLES = [
     { label: '折叠回答图片', attr: 'data-hide-fold-img', key: 'zhihu-hide-fold-img', def: true },
     { label: '屏蔽首页文章', attr: 'data-hide-article', key: 'zhihu-hide-article', def: false },
     { label: '屏蔽商品卡', attr: 'data-hide-ecommerce', key: 'zhihu-hide-ecommerce', def: true },
     { label: '方向键切图', attr: 'data-key-img', key: 'zhihu-key-img', def: true },
-    { label: '未展开也显示时间', attr: 'data-time-api', key: 'zhihu-time-api', def: true }
+    { label: '未展开也显示时间', attr: 'data-time-api', key: 'zhihu-time-api', def: true },
+    { label: '精简导航栏', attr: 'data-hide-nav', key: 'zhihu-hide-nav', def: true }
 ];
 const readToggle = t => { const v = localStorage.getItem(t.key); return v === null ? t.def : v === '1'; };
 
@@ -211,7 +220,7 @@ const setTheme = k => {
     }
     k === 'gray' || k.startsWith('dark') ? r.setAttribute('data-theme', 'dark') : r.removeAttribute('data-theme');
     localStorage.setItem(STORAGE_KEY, k);
-    document.querySelectorAll('.' + THEME_MENU_CLASS + '-item').forEach(i => i.classList.toggle('active', i.dataset.theme === k));
+    document.querySelectorAll('.theme-chip').forEach(i => i.classList.toggle('active', i.dataset.theme === k));
 };
 
 const createThemeMenu = () => {
@@ -235,15 +244,19 @@ const createThemeMenu = () => {
 
     menu.appendChild(groupTitle('主题'));
 
+    const grid = document.createElement('div');
+    grid.className = 'theme-grid';
     Object.keys(C.THEMES).forEach(k => {
         const t = C.THEMES[k];
-        const item = document.createElement('div');
-        item.className = `theme-switcher-item ${k === currentTheme ? 'active' : ''}`;
-        item.dataset.theme = k;
-        item.innerHTML = `<div class="theme-preview" style="background:${t.bg};border-color:${t.bd}"></div><span>${t.n}</span>`;
-        item.onclick = () => { setTheme(k); menu.classList.remove('show'); };
-        menu.appendChild(item);
+        const chip = document.createElement('div');
+        chip.className = `theme-chip ${k === currentTheme ? 'active' : ''}`;
+        chip.dataset.theme = k;
+        chip.title = t.n;
+        chip.innerHTML = `<span class="theme-preview" style="background:${t.bg};border-color:${t.bd}"></span><span>${t.n}</span>`;
+        chip.onclick = () => { setTheme(k); menu.classList.remove('show'); };
+        grid.appendChild(chip);
     });
+    menu.appendChild(grid);
 
     // 功能开关分组
     const divider = document.createElement('div');
@@ -254,7 +267,7 @@ const createThemeMenu = () => {
     TOGGLES.forEach(t => {
         const on = readToggle(t);
         const row = document.createElement('div');
-        row.className = 'theme-switcher-item theme-toggle';
+        row.className = 'theme-toggle';
         row.dataset.toggle = t.key;
         row.setAttribute('role', 'switch');
         row.setAttribute('aria-checked', on ? 'true' : 'false');
