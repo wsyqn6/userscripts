@@ -263,6 +263,16 @@ const browserCdp = async () => {
     return Cdp.connect(webSocketDebuggerUrl);
 };
 
+// 后台建标签：默认不抢焦点，调试时不会把浏览器窗口弹到前台。
+// 旧版内核不认 background 参数，降级为普通创建。
+const createTarget = async (cdp, url) => {
+    try {
+        return await cdp.send('Target.createTarget', { url, background: true });
+    } catch {
+        return await cdp.send('Target.createTarget', { url });
+    }
+};
+
 const attachPage = async (cdp, filter) => {
     const { targetInfos } = await cdp.send('Target.getTargets');
     const pages = targetInfos.filter(t => t.type === 'page');
@@ -340,7 +350,7 @@ const commands = {
         const url = positional[0];
         if (url) {
             const cdp = await browserCdp();
-            const { targetId } = await cdp.send('Target.createTarget', { url });
+            const { targetId } = await createTarget(cdp, url);
             console.log(`已打开 ${url}  (${targetId})`);
             cdp.close();
         }
@@ -375,7 +385,7 @@ const commands = {
         const url = positional[0];
         if (!url) throw new Error('用法: run <url> --inject <file>');
         const cdp = await browserCdp();
-        const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+        const { targetId } = await createTarget(cdp, 'about:blank');
         const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
 
         if (flags.inject) await injectAndReload(cdp, sessionId, flags.inject);
