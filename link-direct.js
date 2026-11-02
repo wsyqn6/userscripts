@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         直链跳转·跳过中转页
+// @name         链接直达
 // @namespace    https://github.com/wsyqn6/userscripts
 // @version      1.3
-// @description  跳过知乎、掘金等网站的中转页，直接访问目标链接
+// @description  跳过知乎、掘金等站点的中转跳转页，直接访问目标链接
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*

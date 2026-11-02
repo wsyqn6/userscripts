@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         IT之家·优化阅读体验
+// @name         IT之家解锁
 // @namespace    https://github.com/wsyqn6/userscripts
 // @version      2.3
-// @description  解锁登录图片，移除广告，热榜集成到侧边栏，信息流全屏展示
+// @description  解锁登录可见图片、移除广告、热榜集成到侧边栏、信息流全宽展示
 // @author       wsyqn6
 // @match        *://*.ithome.com/*
 // @grant        none
