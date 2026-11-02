@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IT之家解锁
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      2.4
+// @version      2.5
 // @description  解锁登录可见图片、移除广告、热榜集成到侧边栏、信息流全宽展示
 // @author       wsyqn6
 // @match        *://*.ithome.com/*
@@ -51,6 +51,12 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
 #list .bl li .c{flex:1!important;min-width:0!important;margin:0!important}
 /* 滚动后顶栏转为高透毛玻璃：保留可读性，同时让内容透出来 */
 #top.hide-bg{background:rgba(26,26,26,.72)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+/* 回到顶部：白底圆形，hover 走站点主色 */
+.ithome-top{position:fixed;right:20px;bottom:80px;width:48px;height:48px;padding:0;border:1px solid #e6e6e6;border-radius:50%;background:#fff;color:#666;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9990;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(8px) scale(.9);transition:all .25s cubic-bezier(.4,0,.2,1);box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.ithome-top.show{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1)}
+.ithome-top:hover{color:#d22222;border-color:#f0c8c8;box-shadow:0 6px 20px rgba(210,34,34,.16)}
+.ithome-top:active{transform:scale(.94)}
+.ithome-top svg{width:22px;height:22px;display:block;fill:currentColor}
 `;
 
     const S = {
@@ -218,16 +224,26 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
             showLightbox(e.key === 'ArrowRight' ? 1 : -1);
         });
 
-        // 顶栏滚动变色：rAF 节流，节点引用缓存
+        // 回到顶部按钮：滚动超过约一屏后淡入
+        const topBtn = Object.assign(document.createElement('button'), { className: 'ithome-top', type: 'button', title: '回到顶部' });
+        topBtn.setAttribute('aria-label', '回到顶部');
+        topBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5l7 7-1.4 1.4L13 8.8V19h-2V8.8L6.4 13.4 5 12z"/></svg>';
+        topBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+        document.body.appendChild(topBtn);
+
+        // 顶栏滚动变色 + 按钮显隐：共用一次 rAF 节流，节点引用缓存
         let ticking = false, topEl = document.getElementById('top');
+        const onScroll = () => {
+            topEl = topEl?.isConnected ? topEl : document.getElementById('top');
+            const y = window.scrollY;
+            topEl?.classList.toggle('hide-bg', y > 0);
+            topBtn.classList.toggle('show', y > innerHeight * 0.8);
+        };
+        onScroll();
         window.addEventListener('scroll', () => {
             if (ticking) return;
             ticking = true;
-            requestAnimationFrame(() => {
-                topEl = topEl?.isConnected ? topEl : document.getElementById('top');
-                topEl?.classList.toggle('hide-bg', window.scrollY > 0);
-                ticking = false;
-            });
+            requestAnimationFrame(() => { onScroll(); ticking = false; });
         }, { passive: true });
 
         // 首屏：解锁图片、清登录浮层（几何检查只做这一次全量）
