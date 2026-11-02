@@ -17,12 +17,13 @@
 .ithome-overlay.show{opacity:1;pointer-events:auto}
 .ithome-overlay img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px}
 .ithome-overlay-close{position:absolute;top:80px;right:20px;width:40px;height:40px;background:rgba(255,255,255,.15);border:none;border-radius:50%;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1}
+.ithome-overlay-count{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);padding:4px 14px;border-radius:20px;background:rgba(0,0,0,.45);color:rgba(255,255,255,.8);font-size:13px;letter-spacing:.06em;font-variant-numeric:tabular-nums}
 /* 面板与遮罩从固定顶栏下方展开，避免头部和关闭按钮被顶栏盖住 */
-.ithome-rank-panel{position:fixed;top:var(--ithome-top,0px);right:-340px;width:340px;height:calc(100vh - var(--ithome-top,0px));background:#fff;z-index:9997;box-shadow:-2px 0 12px rgba(0,0,0,.1);transition:right .3s;overflow-y:auto;font-family:Microsoft Yahei,PingFang SC,HanHei SC,Arial}
+.ithome-rank-panel{--w:min(340px,86vw);position:fixed;top:var(--ithome-top,0px);right:calc(-1 * var(--w));width:var(--w);height:calc(100vh - var(--ithome-top,0px));background:#fff;z-index:9997;box-shadow:-2px 0 12px rgba(0,0,0,.1);transition:right .3s;overflow-y:auto;font-family:Microsoft Yahei,PingFang SC,HanHei SC,Arial}
 .ithome-rank-panel.show{right:0}
 .ithome-rank-panel-header{padding:16px 20px;background:#1a1a1a;border-bottom:3px solid #d22222;display:flex;align-items:center;justify-content:space-between}
 .ithome-rank-panel-header h3{margin:0;font-size:16px;font-weight:400;color:#fff}
-.ithome-rank-panel-close{width:32px;height:32px;border:none;background:none;font-size:22px;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:color .2s}
+.ithome-rank-panel-close{width:32px;height:32px;border:none;background:none;font-size:22px;color:rgba(255,255,255,.6);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:color .2s}
 .ithome-rank-panel-close:hover{color:#d22222}
 .ithome-rank-tabs{display:flex;margin:0;padding:0;list-style:none;border-bottom:1px solid #f0f0f0;background:#fafafa}
 .ithome-rank-tab{flex:1;padding:12px 0;text-align:center;font-size:14px;color:#666;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
@@ -36,7 +37,7 @@
 .ithome-rank-num.top1,.ithome-rank-num.top2,.ithome-rank-num.top3{background:#d22222}
 .ithome-rank-item a{flex:1;min-width:0;color:#333;text-decoration:none;font-size:14px;line-height:1.6;display:block}
 .ithome-rank-item a:hover{color:#d22222}
-.ithome-rank-mask{position:fixed;top:var(--ithome-top,0px);left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:9996;opacity:0;pointer-events:none;transition:opacity .3s}
+.ithome-rank-mask{position:fixed;top:var(--ithome-top,0px);left:0;right:0;bottom:0;background:rgba(0,0,0,.2);z-index:9996;opacity:0;pointer-events:none;transition:opacity .3s}
 .ithome-rank-mask.show{opacity:1;pointer-events:auto}
 #side_func a.sfa.rank{background:#1a1a1a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff'%3E%3Cpath d='M12 23c-4.4 0-8-3.6-8-8 0-4 4-9 8-11 4 2 8 7 8 11 0 4.4-3.6 8-8 8zm0-3c2.8 0 5-2.2 5-5 0-2.5-2.5-6-5-8-2.5 2-5 5.5-5 8 0 2.8 2.2 5 5 5z'/%3E%3C/svg%3E") no-repeat 15px 6px;background-size:20px;color:#fff;font-size:10px;line-height:76px!important}
 #side_func a.sfa.rank:hover{background-color:#d22222!important;color:#fff!important}
@@ -48,7 +49,8 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
 #list .bl li .img{flex:0 0 min(280px,30vw)!important}
 #list .bl li .img img{width:100%!important;height:auto!important;border-radius:6px!important}
 #list .bl li .c{flex:1!important;min-width:0!important;margin:0!important}
-#top.hide-bg{background:rgba(0,0,0,.1)!important}
+/* 滚动后顶栏转为高透毛玻璃：保留可读性，同时让内容透出来 */
+#top.hide-bg{background:rgba(26,26,26,.72)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 `;
 
     const S = {
@@ -97,15 +99,43 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
     };
 
     // ---------- 登录图片解锁 ----------
-    let overlay = null;
+    let overlay = null, gallery = [], gindex = 0;
+
     const getOverlay = () => {
         if (overlay) return overlay;
         overlay = Object.assign(document.createElement('div'), { id: 'ithome-overlay', className: 'ithome-overlay' });
-        overlay.innerHTML = '<button class="ithome-overlay-close">&times;</button><img>';
+        overlay.innerHTML = '<button class="ithome-overlay-close">&times;</button><img><span class="ithome-overlay-count"></span>';
         overlay.querySelector('button').onclick = () => overlay.classList.remove('show');
         overlay.onclick = e => { if (e.target === overlay) overlay.classList.remove('show'); };
         document.body.appendChild(overlay);
         return overlay;
+    };
+
+    // 正文所在容器内的大图序列，左右键在其中切换。
+    // 解锁图可能尚未加载完（尺寸为 0），按标记直接纳入，其余按尺寸过滤
+    const collectGallery = img => {
+        const host = img.closest('#paragraph, #dt .fl.content, .post_content') || document.body;
+        return [...host.querySelectorAll('img')].filter(i =>
+            i.style.cursor === 'zoom-in' ||
+            (getComputedStyle(i).display !== 'none' && (i.getBoundingClientRect().width >= 200 || i.naturalWidth >= 200)));
+    };
+
+    const showLightbox = step => {
+        if (!gallery.length) return;
+        gindex = (gindex + step + gallery.length) % gallery.length;
+        const o = getOverlay();
+        o.querySelector('img').src = gallery[gindex].src;
+        o.querySelector('.ithome-overlay-count').textContent = `${gindex + 1} / ${gallery.length}`;
+        o.classList.add('show');
+        // 预载前进方向那张，翻页时不用等加载
+        const ahead = gallery[(gindex + (step || 1) + gallery.length) % gallery.length];
+        if (ahead && ahead !== gallery[gindex]) new Image().src = ahead.src;
+    };
+
+    const openLightbox = img => {
+        gallery = collectGallery(img);
+        gindex = Math.max(0, gallery.indexOf(img));
+        showLightbox(0);
     };
 
     const replacePlaceholders = root => {
@@ -116,8 +146,8 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
             if (!url || !/^https?:\/\//i.test(url)) continue;
             const img = document.createElement('img');
             img.src = url;
-            img.style.cssText = 'max-height:180px;width:auto;border-radius:8px;margin:8px 0;cursor:zoom-in;display:block';
-            img.onclick = () => { const o = getOverlay(); o.querySelector('img').src = url; o.classList.add('show'); };
+            img.style.cssText = 'max-height:320px;max-width:100%;width:auto;height:auto;border-radius:8px;margin:8px 0;cursor:zoom-in;display:block';
+            img.onclick = () => openLightbox(img);
             img.onerror = () => img.remove();
             span.parentNode.replaceChild(img, span);
         }
@@ -178,8 +208,14 @@ body.red #side_func a.sfa.rank:hover{background-color:#1a1a1a!important}
         };
         syncTopOffset();
 
+        // 灯箱打开时接管方向键翻图，Esc 关闭
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') document.getElementById('ithome-overlay')?.classList.remove('show');
+            const box = document.getElementById('ithome-overlay');
+            if (e.key === 'Escape') return void box?.classList.remove('show');
+            if (!box?.classList.contains('show')) return;
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            e.preventDefault();
+            showLightbox(e.key === 'ArrowRight' ? 1 : -1);
         });
 
         // 顶栏滚动变色：rAF 节流，节点引用缓存
