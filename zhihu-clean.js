@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         知乎极简宽屏·液态玻璃顶栏·主题切换
+// @name         知乎净化
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      2.2
-// @description  宽屏布局、玻璃顶栏、7种护眼主题、优化可读性、广告与带货卡屏蔽、首页折叠回答图片屏蔽、首页文章屏蔽、回到顶部、长列表性能优化
+// @version      2.3
+// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、回到顶部、方向键切图、长列表性能优化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -115,15 +115,17 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .back-to-top:hover{transform:translateY(-2px) scale(1.08)!important;box-shadow:0 6px 20px rgba(0,0,0,0.18)!important;color:var(--lk)!important}
 .back-to-top:active{transform:scale(0.96)!important}
 .back-to-top svg{width:22px!important;height:22px!important;display:block!important;fill:currentColor!important}
-/* 长列表渲染优化：离屏卡片跳过样式/布局/绘制，长期浏览后仍保持滚动流畅
-   估计高度取折叠态常见值，auto 关键字会在卡片首次渲染后记住真实高度 */
+/* 长列表渲染优化：离屏卡片跳过布局与绘制，长期浏览后仍保持滚动流畅
+   只用于首页 feed 卡片——高度稳定（实测中位 144px），估算误差小；
+   问题页回答高度从 500 到上万 px 不等，按估算高度跳过会让整页高度失真 */
 .TopstoryItem{content-visibility:auto!important;contain-intrinsic-size:auto 200px!important}
-.SearchResultItem,.List-item{content-visibility:auto!important;contain-intrinsic-size:auto 400px!important}
 /* content-visibility 自带 paint containment，会裁掉卡片溢出的选中光圈；
    当前键盘选中的卡片退出 content-visibility，只影响一张卡，无性能代价 */
-.TopstoryItem:focus,.List-item:focus,.List-item:focus-within{content-visibility:visible!important}
+.TopstoryItem:focus{content-visibility:visible!important}
 /* 图片样式 */
 .RichContent-inner img,.Post-RichText img,.AnswerCard img{max-width:70%!important;height:auto!important;border-radius:8px!important}
+/* 方向键切图的高亮：内描边不会像 outline 那样被 content-visibility 的 paint containment 裁掉 */
+.zhihu-img-focus{box-shadow:inset 0 0 0 3px var(--lk)!important;border-radius:8px!important}
 /* 首页折叠回答内图片隐藏（展开后自动恢复，可开关） */
 html[data-zhihu-home][data-hide-fold-img] .RichContent.is-collapsed img,
 html[data-zhihu-home][data-hide-fold-img] .RichContent-inner.is-collapsed img,
@@ -156,7 +158,8 @@ const THEME_MENU_CLASS = 'theme-switcher';
 const TOGGLES = [
     { label: '折叠回答图片', attr: 'data-hide-fold-img', key: 'zhihu-hide-fold-img', def: true },
     { label: '屏蔽首页文章', attr: 'data-hide-article', key: 'zhihu-hide-article', def: false },
-    { label: '屏蔽商品卡', attr: 'data-hide-ecommerce', key: 'zhihu-hide-ecommerce', def: true }
+    { label: '屏蔽商品卡', attr: 'data-hide-ecommerce', key: 'zhihu-hide-ecommerce', def: true },
+    { label: '方向键切图', attr: 'data-key-img', key: 'zhihu-key-img', def: true }
 ];
 const readToggle = t => { const v = localStorage.getItem(t.key); return v === null ? t.def : v === '1'; };
 
@@ -318,6 +321,96 @@ const initScrollEffects = () => {
     window.addEventListener('scroll', update, { passive: true });
     // 首屏可能已在下方（刷新后恢复位置）
     if (window.scrollY > C.TOP_SHOW) { shownTop = true; backTopBtn.classList.add('show'); }
+};
+
+// ==================== 方向键切图 ====================
+// ←/→ 在「当前回答」内逐张跳图：不实现查看器，只做定位 + 内描边高亮
+const IMG_MIN = 200;   // 正文图最小边长，用来滤掉头像、图标、表情
+const IMG_HL = 'zhihu-img-focus';
+const CARD_SEL = '.AnswerItem,.ArticleItem,.Post-RichText,.TopstoryItem,.ContentItem';
+
+let imgHlTimer = 0;
+
+// 卡片内可跳转的正文图（文档序）：排除头像/图标、被脚本隐藏的折叠图，
+// 以及折叠回答裁切容器里的图（滚过去也看不见，只会滚内部容器）
+const cardImages = card => [...card.querySelectorAll('img')].filter(m => {
+    if (m.closest('.Avatar,.RichContent-emoji,.RichText-emoji')) return false;
+    if (getComputedStyle(m).display === 'none') return false;
+    if (m.naturalWidth < IMG_MIN && m.getBoundingClientRect().width < IMG_MIN) return false;
+    for (let n = m.parentElement; n && n !== card; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if ((cs.overflowY === 'hidden' || cs.overflowY === 'auto') && n.scrollHeight > n.clientHeight + 8) return false;
+    }
+    return true;
+});
+
+// 当前回答：键盘选中优先（j/k 会真实 focus 卡片），否则取视口中线命中的卡片
+const currentCard = () => {
+    const focused = document.activeElement?.closest?.(CARD_SEL);
+    if (focused) return focused;
+    for (const el of document.elementsFromPoint(innerWidth / 2, innerHeight / 2)) {
+        const card = el.closest?.(CARD_SEL);
+        if (card) return card;
+    }
+    return null;
+};
+
+// 全屏浮层（评论弹窗、图片查看器）打开时，方向键交回页面处理
+const overlayOpen = () => {
+    for (const el of document.body.children) {
+        const cs = getComputedStyle(el);
+        if (cs.position === 'fixed' && cs.pointerEvents !== 'none' && el.getBoundingClientRect().height > innerHeight * 0.5) return true;
+    }
+    return false;
+};
+
+const jumpImage = dir => {
+    const card = currentCard();
+    if (!card) return false;
+    const imgs = cardImages(card);
+    if (imgs.length < 2) return false;
+
+    // 无状态定位：离视口中心最近的一张即「当前图」，手动滚动后也能接着走。
+    // 用视口坐标而不是文档坐标——滚动可能发生在内部容器上，scrollY 并不可靠
+    const mid = innerHeight / 2;
+    let cur = 0, best = Infinity;
+    imgs.forEach((m, i) => {
+        const r = m.getBoundingClientRect();
+        const d = Math.abs(r.top + r.height / 2 - mid);
+        if (d < best) { best = d; cur = i; }
+    });
+
+    const next = imgs[cur + dir];
+    if (!next) return false;
+
+    // 卡片处于 content-visibility 跳过态时 rect 是估算值，先让它真实渲染再定位
+    const revealed = [];
+    for (let n = next.parentElement; n && n !== document.body; n = n.parentElement) {
+        if (getComputedStyle(n).contentVisibility !== 'auto') continue;
+        n.style.setProperty('content-visibility', 'visible', 'important');
+        revealed.push(n);
+    }
+    if (revealed.length) next.getBoundingClientRect();   // 强制布局，拿到真实坐标
+
+    next.scrollIntoView({ block: 'center' });
+    if (revealed.length) setTimeout(() => revealed.forEach(n => n.style.removeProperty('content-visibility')), 600);
+    clearTimeout(imgHlTimer);
+    document.querySelectorAll('.' + IMG_HL).forEach(el => el.classList.remove(IMG_HL));
+    next.classList.add(IMG_HL);
+    imgHlTimer = setTimeout(() => next.classList.remove(IMG_HL), 1200);
+    return true;
+};
+
+const initImageKeys = () => {
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (!document.documentElement.hasAttribute('data-key-img')) return;
+        // 输入框、视频与轮播组件内的方向键保持站点原生行为
+        if (e.target.closest?.('input,textarea,[contenteditable="true"],video,[class*="Video"],[class*="ZVideo"]')) return;
+        if (overlayOpen()) return;
+        if (jumpImage(e.key === 'ArrowRight' ? 1 : -1)) e.preventDefault();
+    }, true);
 };
 
 // ==================== 发布时间 ====================
@@ -611,6 +704,7 @@ const init = () => {
     // 创建主题菜单与滚动联动（顶栏隐藏 + 回到顶部）
     createThemeMenu();
     initScrollEffects();
+    initImageKeys();
     
     // 延迟处理页面内容（等待知乎数据加载）
     const isHome = location.pathname === '/' || location.pathname === '';

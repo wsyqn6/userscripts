@@ -430,6 +430,17 @@ const commands = {
         cdp.close();
     },
 
+    // 兜底：直接下发任意 CDP 命令，用于现有命令没覆盖的域
+    async send() {
+        const [method, raw] = positional;
+        if (!method) throw new Error('用法: send <Method> [json 参数] [--target id]');
+        const cdp = await browserCdp();
+        const { sessionId } = await attachPage(cdp, flags.url);
+        const result = await cdp.send(method, raw ? JSON.parse(raw) : {}, sessionId);
+        console.log(JSON.stringify(result, null, 1));
+        cdp.close();
+    },
+
     // 真实鼠标移动：触发 hover 态（悬浮控件、放大按钮等）
     async move() {
         const [x, y] = positional.map(Number);
