@@ -19,7 +19,6 @@ const C = {
     TOP_SHOW: 600, MAX_BATCH: 120,
     URL_DELAY: 500, SCROLL_DELAY: 800, INIT_DELAY: 1000, HOME_DELAY: 1500,
     S: {
-        mainCol: '.Topstory-mainColumn,.Question-mainColumn,.ContentLayout-mainColumn,.SearchMain',
         items: '.AnswerItem, .List-item, .ArticleItem, .SearchResultItem',
         time: '.ContentItem-time',
         // 官方广告位：旧版 feed 广告、右侧栏、商业内容卡（pc-article-answer 文字卡/大图卡）
