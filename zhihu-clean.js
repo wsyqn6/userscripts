@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎净化
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      2.6
+// @version      2.8
 // @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、方向键切图、未展开显示回答时间、长列表性能优化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
@@ -140,6 +140,11 @@ html[data-zhihu-home][data-hide-article] [data-zhihu-article]{display:none!impor
 /* 带货商品卡屏蔽（可开关）：知乎好物推荐/商业化组件，正常回答不会出现 */
 html[data-hide-ecommerce] .RichText-Ecommerce,
 html[data-hide-ecommerce] [class*="ecommerce-ad"]{display:none!important}
+/* 整张卡就是一个商品块时连外壳一起隐藏——只藏内部块会留下卡片自带的
+   border-bottom 与 padding，形成一根横线和一截空白，还会成为 j/k 的死步 */
+html[data-hide-ecommerce] [data-zhihu-empty]{display:none!important}
+/* 内容被剥空的外壳（广告已删、图已藏、空推荐位）：与开关无关，一律隐藏 */
+[data-zhihu-blank]{display:none!important}
 /* 问题页宽屏修复：清除 hash 容器宽度限制 */
 .App-main{width:100%!important;max-width:none!important}
 .QuestionPage{width:100%!important;max-width:1400px!important;margin:0 auto!important}
@@ -737,6 +742,12 @@ const flushNodes = () => {
         n.querySelectorAll(C.S.ads).forEach(ad => ad.remove());
         if (n.matches('.TopstoryItem-isRecommend') && !n.textContent.trim()) { n.remove(); continue; }
         for (const c of n.querySelectorAll('.TopstoryItem-isRecommend')) { if (!c.textContent.trim()) c.remove(); }
+        if (n.matches(FEED_ITEMS)) markCard(n);
+        for (const c of n.querySelectorAll(FEED_ITEMS)) markCard(c);
+        // 内容插进已有卡片（懒加载、骨架屏补内容）时也要重新判定，避免外壳被误判后
+        // 永远隐藏：从新增节点往上找最近的卡片
+        const owner = n.closest(FEED_ITEMS);
+        if (owner) markCard(owner);
     }
 
     // 读阶段：整批只收集一次条目集合
@@ -766,6 +777,49 @@ const enqueueNodes = mutations => {
 };
 
 // ==================== 广告拦截 ====================
+// 卡片外壳自带 border-bottom，只藏内部内容会留下一根横线加一截空白。
+// 两类外壳都要整卡隐藏：
+//   data-zhihu-empty 整卡就是一个商品块（受「屏蔽商品卡」开关控制）
+//   data-zhihu-blank 内容被剥空（广告已删、图片已藏、空推荐位），无论开关都该消失
+const ECOMMERCE = '.RichText-Ecommerce, [class*="ecommerce-ad"]';
+const EMPTY_ATTR = 'data-zhihu-empty';
+const BLANK_ATTR = 'data-zhihu-blank';
+const EMPTY_KEEP = 40;          // 去掉商品块后剩余正文字符数下限
+const BLANK_KEEP = 8;           // 少于这么多字且无正文结构，判定为外壳
+const CARD_CONTENT = '.RichContent-inner,.RichContent,.ContentItem-title,.Post-Title,.AuthorInfo,img,video,iframe,.RichText';
+// 骨架屏/占位卡片此刻没内容，但内容在路上；隐藏后不会再进入视口触发加载，不能藏
+const CARD_SKELETON = '[class*="Skeleton"],[class*="Placeholder"],[class*="Loading"]';
+
+const setFlag = (el, attr, on) => {
+    if (on === el.hasAttribute(attr)) return;
+    on ? el.setAttribute(attr, '1') : el.removeAttribute(attr);
+};
+
+const markCard = card => {
+    const ecom = card.querySelectorAll(ECOMMERCE);
+
+    // 有商品块：块内文本占绝大多数、块外只剩几个字，才算整卡商品卡。
+    // 用比例而不是绝对字数，避免正文偏短的回答被误杀
+    if (ecom.length) {
+        let ecomLen = 0;
+        for (const el of ecom) ecomLen += el.textContent.length;
+        const rest = card.textContent.length - ecomLen;
+        setFlag(card, EMPTY_ATTR, rest < EMPTY_KEEP && rest * 2 < ecomLen);
+        return setFlag(card, BLANK_ATTR, false);
+    }
+
+    // 内容是否还在：正文结构、图片视频，或者一小段文字（"还有 N 个动态被收起"这类
+    // 功能性卡片只有文字，不能当空壳）。有正文结构时不做 textContent 统计
+    const blank = !card.querySelector(CARD_CONTENT) && !card.querySelector(CARD_SKELETON)
+        && card.textContent.trim().length < BLANK_KEEP;
+    setFlag(card, BLANK_ATTR, blank);
+};
+
+// 商品块可能整卡也可能插在正文中间，整卡扫描只在维护与新增节点时做
+const markCards = (root = document) => {
+    for (const el of root.querySelectorAll(FEED_ITEMS)) markCard(el);
+};
+
 const blockAds = () => {
     document.querySelectorAll(C.S.ads).forEach(ad => ad.remove());
     document.querySelectorAll('.TopstoryItem-isRecommend').forEach(card => {
@@ -779,6 +833,7 @@ const idle = fn => ('requestIdleCallback' in window ? requestIdleCallback(fn, { 
 const maintain = () => idle(() => {
     addPublishTime();
     blockAds();
+    markCards();
     markFolded(document);
 });
 
@@ -803,9 +858,10 @@ const createObservers = () => {
     history.replaceState = (...args) => { _replaceState.apply(history, args); onUrlChange(); };
     window.addEventListener('popstate', onUrlChange);
     
+    // 挂在 document.body，不挂主列：首屏主列是 SSR 出来的节点，React 水合会整段替换，
+    // 观察器留在被丢弃的旧节点上就再也不会回调（新卡片完全不被处理）
     const contentObserver = new MutationObserver(enqueueNodes);
-    const mainCol = document.querySelector(C.S.mainCol);
-    contentObserver.observe(mainCol || document.body, { childList: true, subtree: true });
+    contentObserver.observe(document.body, { childList: true, subtree: true });
     observers.push(contentObserver);
 };
 
