@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎净化
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      2.8
+// @version      3.0
 // @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、方向键切图、未展开显示回答时间、长列表性能优化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
@@ -19,20 +19,27 @@ const C = {
     TOP_SHOW: 600, MAX_BATCH: 120,
     URL_DELAY: 500, SCROLL_DELAY: 800, INIT_DELAY: 1000, HOME_DELAY: 1500,
     S: {
-        items: '.AnswerItem, .List-item, .ArticleItem, .SearchResultItem',
         time: '.ContentItem-time',
         // 官方广告位：旧版 feed 广告、右侧栏、商业内容卡（pc-article-answer 文字卡/大图卡）
         ads: '[class*="advertCard"], [class*="Pc-feedAd"], [class*="Pc-word"], .PinItem, .Pc-Business-Card-PcTopFeedBanner, [data-za-detail-view-path-module="RightSideBar"], .GlobalSideBar, [class~="pc-article-answer"], [class~="pc-article-answer-big-img"]'
     },
+    // g 为主题分组：light 浅色 / eye 护眼 / dark 暗色
     THEMES: {
-        light:    { n:'晨曦白',   bg:'#f7f5f0', tx:'#2e2924', ti:'#1a1712', ac:'#8a7660', bd:'#ddd6cc', cd:'#fefdfa', hd:'rgba(247,245,240,0.72)', lk:'#5b7a9a', hl:'rgba(91,122,154,0.1)' },
-        green:    { n:'薄荷绿',   bg:'#e4ede4', tx:'#283228', ti:'#182418', ac:'#527a52', bd:'#c4d4c4', cd:'#f0f6f0', hd:'rgba(228,237,228,0.72)', lk:'#36805a', hl:'rgba(54,128,90,0.1)' },
-        blue:     { n:'雾霾蓝',   bg:'#e3e9f0', tx:'#1c2838', ti:'#0e1826', ac:'#4d6b8a', bd:'#c2cedc', cd:'#f0f4f8', hd:'rgba(227,233,240,0.72)', lk:'#4a72ad', hl:'rgba(74,114,173,0.12)' },
-        amber:    { n:'琥珀黄昏', bg:'#f5e9d2', tx:'#3f3220', ti:'#261c0e', ac:'#b08844', bd:'#e0cfb4', cd:'#fcf4e6', hd:'rgba(245,233,210,0.72)', lk:'#b07a28', hl:'rgba(176,122,40,0.1)' },
-        gray:     { n:'暮色灰',   bg:'#323438', tx:'#c2c5cd', ti:'#ced1d8', ac:'#a0a5b0', bd:'#4a4d55', cd:'#3d3f45', hd:'rgba(50,52,56,0.85)', lk:'#84aac2', hl:'rgba(132,170,194,0.15)' },
-        dark:     { n:'午夜黑',   bg:'#131313', tx:'#b3b7be', ti:'#c0c4ca', ac:'#8d929b', bd:'#2a2a2e', cd:'#1a1a1a', hd:'rgba(19,19,19,0.85)', lk:'#7895ad', hl:'rgba(120,149,173,0.15)' },
-        darkBlue: { n:'深海蓝',   bg:'#0e1118', tx:'#afb4bf', ti:'#bcc2cc', ac:'#8a909f', bd:'#282e3c', cd:'#161a24', hd:'rgba(14,17,24,0.85)', lk:'#7a9ebd', hl:'rgba(122,158,189,0.15)' }
-    }
+        light:    { n:'晨曦白',   g:'light', bg:'#f7f5f0', tx:'#2e2924', ti:'#1a1712', ac:'#8a7660', bd:'#ddd6cc', cd:'#fefdfa', hd:'rgba(247,245,240,0.72)', lk:'#5b7a9a', hl:'rgba(91,122,154,0.1)' },
+        rose:     { n:'豆沙粉',   g:'light', bg:'#f8efee', tx:'#3a2f2d', ti:'#241a18', ac:'#a1837c', bd:'#e5d3d0', cd:'#fdf9f8', hd:'rgba(248,239,238,0.72)', lk:'#9e5f54', hl:'rgba(158,95,84,0.1)' },
+        amber:    { n:'琥珀黄昏', g:'light', bg:'#f5e9d2', tx:'#3f3220', ti:'#261c0e', ac:'#b08844', bd:'#e0cfb4', cd:'#fcf4e6', hd:'rgba(245,233,210,0.72)', lk:'#b07a28', hl:'rgba(176,122,40,0.1)' },
+        green:    { n:'薄荷绿',   g:'eye',   bg:'#e4ede4', tx:'#283228', ti:'#182418', ac:'#527a52', bd:'#c4d4c4', cd:'#f0f6f0', hd:'rgba(228,237,228,0.72)', lk:'#36805a', hl:'rgba(54,128,90,0.1)' },
+        blue:     { n:'雾霾蓝',   g:'eye',   bg:'#e3e9f0', tx:'#1c2838', ti:'#0e1826', ac:'#4d6b8a', bd:'#c2cedc', cd:'#f0f4f8', hd:'rgba(227,233,240,0.72)', lk:'#4a72ad', hl:'rgba(74,114,173,0.12)' },
+        lilac:    { n:'丁香紫',   g:'eye',   bg:'#edeaf3', tx:'#2e2b38', ti:'#1c1a26', ac:'#7e7691', bd:'#d7d2e0', cd:'#f6f4fa', hd:'rgba(237,234,243,0.72)', lk:'#6a5c92', hl:'rgba(106,92,146,0.12)' },
+        gray:     { n:'暮色灰',   g:'dark',  bg:'#323438', tx:'#c2c5cd', ti:'#ced1d8', ac:'#a0a5b0', bd:'#4a4d55', cd:'#3d3f45', hd:'rgba(50,52,56,0.85)', lk:'#84aac2', hl:'rgba(132,170,194,0.15)' },
+        dark:     { n:'午夜黑',   g:'dark',  bg:'#131313', tx:'#b3b7be', ti:'#c0c4ca', ac:'#8d929b', bd:'#2a2a2e', cd:'#1a1a1a', hd:'rgba(19,19,19,0.85)', lk:'#7895ad', hl:'rgba(120,149,173,0.15)' },
+        darkBlue: { n:'深海蓝',   g:'dark',  bg:'#0e1118', tx:'#afb4bf', ti:'#bcc2cc', ac:'#8a909f', bd:'#282e3c', cd:'#161a24', hd:'rgba(14,17,24,0.85)', lk:'#7a9ebd', hl:'rgba(122,158,189,0.15)' }
+    },
+    THEME_GROUPS: [
+        { k:'light', n:'浅色' },
+        { k:'eye',   n:'护眼' },
+        { k:'dark',  n:'暗色' }
+    ]
 };
 
 let currentTheme = 'light';
@@ -93,7 +100,12 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
    不再随功能增加而线性变长（旧的逐行列表 7 主题 + 5 开关已有 682px） */
 .theme-switcher-menu{position:absolute!important;right:0!important;bottom:58px!important;width:252px!important;background:var(--cd)!important;border:1px solid var(--bd)!important;border-radius:14px!important;padding:8px 0 6px!important;max-height:calc(100vh - 160px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;box-shadow:0 10px 30px rgba(0,0,0,0.15)!important;opacity:0!important;visibility:hidden!important;transform:translateY(10px) scale(0.95)!important;transition:all 0.25s cubic-bezier(0.4,0,0.2,1)!important}
 .theme-switcher-menu.show{opacity:1!important;visibility:visible!important;transform:translateY(0) scale(1)!important}
-.theme-grid{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:2px!important;padding:0 8px 4px!important}
+.theme-tabs{display:flex!important;gap:2px!important;margin:0 8px 6px!important;padding:2px!important;border-radius:9px!important;background:rgba(128,128,128,0.14)!important}
+.theme-tab{flex:1!important;padding:5px 0!important;text-align:center!important;font-size:12px!important;border-radius:7px!important;cursor:pointer!important;color:var(--ac)!important;transition:background 0.15s ease,color 0.15s ease!important}
+.theme-tab:hover{color:var(--tx)!important}
+.theme-tab.active{background:var(--cd)!important;color:var(--lk)!important;font-weight:600!important;box-shadow:0 1px 3px rgba(0,0,0,0.12)!important}
+.theme-grid{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:2px!important;padding:0 8px 4px!important}
+.theme-grid:not(.show){display:none!important}
 .theme-chip{display:flex!important;flex-direction:column!important;align-items:center!important;gap:5px!important;padding:7px 0 8px!important;border-radius:10px!important;cursor:pointer!important;font-size:11px!important;line-height:1!important;color:var(--tx)!important;transition:background 0.15s ease,color 0.15s ease!important}
 .theme-chip:hover{background:rgba(0,0,0,0.05)!important}
 .theme-chip.active{background:var(--hl)!important;color:var(--lk)!important;font-weight:600!important}
@@ -213,18 +225,24 @@ const throttle = (fn, delay) => {
 };
 
 // ==================== 主题切换 ====================
+// 分组只切换可见性，不改变当前主题；选中主题时自动跳到它所在的分组
+const showThemeGroup = (g, root = document) => {
+    root.querySelectorAll('.theme-tab').forEach(el => el.classList.toggle('active', el.dataset.g === g));
+    root.querySelectorAll('.theme-grid').forEach(el => el.classList.toggle('show', el.dataset.g === g));
+};
+
 const setTheme = k => {
     if (!C.THEMES[k]) return;
     currentTheme = k;
     const t = C.THEMES[k], r = document.documentElement;
-    const cssKey = { hd: 'h' };
     for (const key in t) {
-        if (key === 'n') continue;
-        r.style.setProperty(`--${cssKey[key] || key}`, t[key]);
+        if (key === 'n' || key === 'g') continue;          // n=名称 g=分组，不是颜色变量
+        r.style.setProperty(`--${key === 'hd' ? 'h' : key}`, t[key]);
     }
-    k === 'gray' || k.startsWith('dark') ? r.setAttribute('data-theme', 'dark') : r.removeAttribute('data-theme');
+    t.g === 'dark' ? r.setAttribute('data-theme', 'dark') : r.removeAttribute('data-theme');
     localStorage.setItem(STORAGE_KEY, k);
     document.querySelectorAll('.theme-chip').forEach(i => i.classList.toggle('active', i.dataset.theme === k));
+    showThemeGroup(t.g);
 };
 
 const createThemeMenu = () => {
@@ -248,8 +266,27 @@ const createThemeMenu = () => {
 
     menu.appendChild(groupTitle('主题'));
 
-    const grid = document.createElement('div');
-    grid.className = 'theme-grid';
+    // 分组标签 + 每组一个网格，一次只显示一组
+    const tabs = document.createElement('div');
+    tabs.className = 'theme-tabs';
+    C.THEME_GROUPS.forEach(g => {
+        const tab = document.createElement('div');
+        tab.className = 'theme-tab';
+        tab.dataset.g = g.k;
+        tab.textContent = g.n;
+        tab.onclick = () => showThemeGroup(g.k, menu);
+        tabs.appendChild(tab);
+    });
+    menu.appendChild(tabs);
+
+    const grids = {};
+    C.THEME_GROUPS.forEach(g => {
+        const grid = document.createElement('div');
+        grid.className = 'theme-grid';
+        grid.dataset.g = g.k;
+        grids[g.k] = grid;
+        menu.appendChild(grid);
+    });
     Object.keys(C.THEMES).forEach(k => {
         const t = C.THEMES[k];
         const chip = document.createElement('div');
@@ -257,10 +294,11 @@ const createThemeMenu = () => {
         chip.dataset.theme = k;
         chip.title = t.n;
         chip.innerHTML = `<span class="theme-preview" style="background:${t.bg};border-color:${t.bd}"></span><span>${t.n}</span>`;
-        chip.onclick = () => { setTheme(k); menu.classList.remove('show'); };
-        grid.appendChild(chip);
+        chip.onclick = () => setTheme(k);
+        grids[t.g].appendChild(chip);
     });
-    menu.appendChild(grid);
+    // 此时菜单还没插进文档，只能在菜单内部查询
+    showThemeGroup(C.THEMES[currentTheme].g, menu);
 
     // 功能开关分组
     const divider = document.createElement('div');
@@ -295,7 +333,7 @@ const setToggle = (t, on) => {
     const row = document.querySelector(`.theme-toggle[data-toggle="${t.key}"]`);
     if (row) row.setAttribute('aria-checked', on ? 'true' : 'false');
     // 时间补全开关打开时，已渲染的卡片还没发起过探测，补一遍
-    if (t.attr === 'data-time-api' && on) addPublishTime();
+    if (t.attr === 'data-time-api' && on) scanCards();
 };
 
 const applyToggles = () => TOGGLES.forEach(t => document.documentElement.toggleAttribute(t.attr, readToggle(t)));
@@ -591,8 +629,6 @@ const addArticleTag = item => {
     title.appendChild(tag);
 };
 
-const addPublishTime = () => document.querySelectorAll(C.S.items).forEach(item => { processTimeInfo(item); addArticleTag(item); });
-
 // ==================== 收起回答 ====================
 const collapseItem = item => {
     const btn = item.querySelector('.ContentItem-rightButton');
@@ -603,15 +639,15 @@ const collapseItem = item => {
 
 const collapseAnswers = () => {
     // 收起会让知乎删掉时间节点，先把展开态读到的时间存进缓存，收起后照着重绘
-    addPublishTime();
+    scanCards();
     document.querySelectorAll('.AnswerItem').forEach(collapseItem);
-    setTimeout(addPublishTime, 600);
+    setTimeout(() => scanCards(), 600);
 };
 
 // ==================== 首页折叠回答图片屏蔽 ====================
 const HOME_ATTR = 'data-zhihu-home';
 const FOLDED_ATTR = 'data-zhihu-folded';
-const FEED_ITEMS = '.TopstoryItem, .List-item';
+const SHELL_SEL = '.TopstoryItem, .List-item';
 
 const syncHomeFlag = () => {
     const r = document.documentElement;
@@ -668,42 +704,104 @@ const probeWhenVisible = item => {
     foldIO.observe(item);
 };
 
-const collectItems = root => {
-    const scope = root && root.nodeType === Node.ELEMENT_NODE ? root : document;
-    const items = new Set();
-    if (scope.matches?.(FEED_ITEMS)) items.add(scope);
-    const card = scope.closest?.(FEED_ITEMS);
-    if (card) items.add(card);
-    scope.querySelectorAll?.(FEED_ITEMS).forEach(i => items.add(i));
-    return items;
-};
-
-const ARTICLE_ATTR = 'data-zhihu-article';
-
-const isArticleItem = item => item.matches('.ArticleItem') || !!item.querySelector('.ArticleItem');
-
-const markItems = (items, geometry = false) => {
-    if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
-    for (const item of items) {
-        // 文章卡只打标供 CSS 屏蔽，无需折叠判定
-        if (isArticleItem(item)) { item.setAttribute(ARTICLE_ATTR, '1'); continue; }
-        applyFold(item, geometry);
-        probeWhenVisible(item);
-    }
-};
-
-const markFolded = (root, geometry = false) => markItems(collectItems(root), geometry);
-
+// 展开/收起后重新判定（文案或类名变化不一定触发子节点观察）
 const initFoldWatcher = () => {
-    // 展开/收起后重新判定（文案或类名变化不一定触发子节点观察）
     document.addEventListener('click', e => {
         if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
         const btn = e.target.closest?.('.ContentItem-more, .ContentItem-rightButton, .RichContent-collapsedText');
         if (!btn) return;
-        const item = btn.closest(FEED_ITEMS);
-        if (item) setTimeout(() => markFolded(item, true), 300);
+        const card = btn.closest(SHELL_SEL);
+        if (card) setTimeout(() => scanCards(card, true), 300);
     }, true);
-    window.addEventListener('load', () => markFolded(document));
+    window.addEventListener('load', () => scanCards());
+};
+
+// ==================== 卡片管线 ====================
+// 首页/问题页的卡片要做的判定全在这里，入口只有 scanCards 一个：
+//   外壳（带 border 的那层）：整卡商品、空壳、文章标记、折叠
+//   内容项（带时间的那层）：发布/编辑时间、文章标签
+// 单次遍历同时处理两类节点，新增节点与全量维护共用同一条路径。
+const ITEM_SEL = '.AnswerItem, .List-item, .ArticleItem, .SearchResultItem';
+const SCAN_SEL = SHELL_SEL + ', .AnswerItem, .ArticleItem, .SearchResultItem';
+
+// 卡片外壳自带 border-bottom，只藏内部内容会留下一根横线加一截空白。
+// 两类外壳都要整卡隐藏：
+//   data-zhihu-empty 整卡就是一个商品块（受「屏蔽商品卡」开关控制）
+//   data-zhihu-blank 内容被剥空（广告已删、图片已藏、空推荐位），无论开关都该消失
+const ECOMMERCE = '.RichText-Ecommerce, [class*="ecommerce-ad"]';
+const ARTICLE_ATTR = 'data-zhihu-article';
+const EMPTY_ATTR = 'data-zhihu-empty';
+const BLANK_ATTR = 'data-zhihu-blank';
+const EMPTY_KEEP = 40;          // 去掉商品块后剩余正文字符数下限
+const BLANK_KEEP = 8;           // 少于这么多字且无正文结构，判定为外壳
+const CARD_CONTENT = '.RichContent-inner,.RichContent,.ContentItem-title,.Post-Title,.AuthorInfo,img,video,iframe,.RichText';
+// 骨架屏/占位卡片此刻没内容，但内容在路上；隐藏后不会再进入视口触发加载，不能藏
+const CARD_SKELETON = '[class*="Skeleton"],[class*="Placeholder"],[class*="Loading"]';
+
+const setFlag = (el, attr, on) => {
+    if (on === el.hasAttribute(attr)) return;
+    on ? el.setAttribute(attr, '1') : el.removeAttribute(attr);
+};
+
+const markCommerce = card => {
+    const ecom = card.querySelectorAll(ECOMMERCE);
+
+    // 有商品块：块内文本占绝大多数、块外只剩几个字，才算整卡商品卡。
+    // 用比例而不是绝对字数，避免正文偏短的回答被误杀
+    if (ecom.length) {
+        let ecomLen = 0;
+        for (const el of ecom) ecomLen += el.textContent.length;
+        const rest = card.textContent.length - ecomLen;
+        setFlag(card, EMPTY_ATTR, rest < EMPTY_KEEP && rest * 2 < ecomLen);
+        return setFlag(card, BLANK_ATTR, false);
+    }
+
+    // 内容是否还在：正文结构、图片视频，或者一小段文字（"还有 N 个动态被收起"这类
+    // 功能性卡片只有文字，不能当空壳）。有正文结构时不做 textContent 统计
+    const blank = !card.querySelector(CARD_CONTENT) && !card.querySelector(CARD_SKELETON)
+        && card.textContent.trim().length < BLANK_KEEP;
+    setFlag(card, BLANK_ATTR, blank);
+};
+
+// 外壳判定：商品/空壳 → 文章卡 → 折叠
+const markShell = (card, geometry) => {
+    markCommerce(card);
+    // 文章卡只打标供 CSS 屏蔽，无需折叠判定
+    if (card.matches('.ArticleItem') || card.querySelector('.ArticleItem')) {
+        return card.setAttribute(ARTICLE_ATTR, '1');
+    }
+    if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
+    applyFold(card, geometry);
+    probeWhenVisible(card);
+};
+
+// 内容项判定：时间 + 文章标签。问题页 .List-item 包着 .AnswerItem，只在最内层做
+const markItem = item => {
+    if (item.classList.contains('List-item') && item.querySelector('.AnswerItem')) return;
+    processTimeInfo(item);
+    addArticleTag(item);
+};
+
+const scanNode = (node, geometry) => {
+    if (node.matches(SHELL_SEL)) markShell(node, geometry);
+    if (node.matches(ITEM_SEL)) markItem(node);
+};
+
+const scanCards = (root = document, geometry = false) => {
+    if (root.nodeType === 1) scanNode(root, geometry);
+    for (const node of root.querySelectorAll(SCAN_SEL)) scanNode(node, geometry);
+};
+
+// 广告与空推荐位直接删节点（display:none 会留下卡片外壳，站点导航也仍会走到它）
+const removeAds = (root = document) => {
+    if (root.nodeType === 1) {
+        if (root.matches(C.S.ads)) return root.remove();
+        if (root.matches('.TopstoryItem-isRecommend') && !root.textContent.trim()) return root.remove();
+    }
+    for (const ad of root.querySelectorAll(C.S.ads)) ad.remove();
+    for (const card of root.querySelectorAll('.TopstoryItem-isRecommend')) {
+        if (!card.textContent.trim()) card.remove();
+    }
 };
 
 // ==================== 节点处理 ====================
@@ -734,35 +832,16 @@ const flushNodes = () => {
     const nodes = takeBatch();
     if (!nodes.length) return;
 
-    // 写阶段：广告与空推荐卡
     for (const n of nodes) {
         if (!n.isConnected) continue;
-        if (n.matches(C.S.ads)) { n.remove(); continue; }
-        n.querySelectorAll(C.S.ads).forEach(ad => ad.remove());
-        if (n.matches('.TopstoryItem-isRecommend') && !n.textContent.trim()) { n.remove(); continue; }
-        for (const c of n.querySelectorAll('.TopstoryItem-isRecommend')) { if (!c.textContent.trim()) c.remove(); }
-        if (n.matches(FEED_ITEMS)) markCard(n);
-        for (const c of n.querySelectorAll(FEED_ITEMS)) markCard(c);
-        // 内容插进已有卡片（懒加载、骨架屏补内容）时也要重新判定，避免外壳被误判后
-        // 永远隐藏：从新增节点往上找最近的卡片
-        const owner = n.closest(FEED_ITEMS);
-        if (owner) markCard(owner);
-    }
-
-    // 读阶段：整批只收集一次条目集合
-    const items = new Set();
-    for (const n of nodes) {
+        removeAds(n);
         if (!n.isConnected) continue;
-        if (n.matches(C.S.items)) items.add(n);
-        n.querySelectorAll(C.S.items).forEach(i => items.add(i));
-        const p = n.closest(C.S.items);
-        if (p) items.add(p);
+        scanCards(n);
+        // 内容插进已有卡片（懒加载、骨架屏补内容）时也要重新判定，避免外壳被判空后
+        // 一直隐藏：从新增节点往上找最近的卡片
+        const owner = n.parentElement?.closest(SCAN_SEL);
+        if (owner) scanNode(owner, false);
     }
-    for (const item of items) {
-        processTimeInfo(item);
-        addArticleTag(item);
-    }
-    if (items.size) markItems(items);
 
     // 还有积压就留到下一轮，保持单次工作量可控
     if (pendingNodes.size && !flushHandle) scheduleFlush();
@@ -775,65 +854,12 @@ const enqueueNodes = mutations => {
     if (!flushHandle) scheduleFlush();
 };
 
-// ==================== 广告拦截 ====================
-// 卡片外壳自带 border-bottom，只藏内部内容会留下一根横线加一截空白。
-// 两类外壳都要整卡隐藏：
-//   data-zhihu-empty 整卡就是一个商品块（受「屏蔽商品卡」开关控制）
-//   data-zhihu-blank 内容被剥空（广告已删、图片已藏、空推荐位），无论开关都该消失
-const ECOMMERCE = '.RichText-Ecommerce, [class*="ecommerce-ad"]';
-const EMPTY_ATTR = 'data-zhihu-empty';
-const BLANK_ATTR = 'data-zhihu-blank';
-const EMPTY_KEEP = 40;          // 去掉商品块后剩余正文字符数下限
-const BLANK_KEEP = 8;           // 少于这么多字且无正文结构，判定为外壳
-const CARD_CONTENT = '.RichContent-inner,.RichContent,.ContentItem-title,.Post-Title,.AuthorInfo,img,video,iframe,.RichText';
-// 骨架屏/占位卡片此刻没内容，但内容在路上；隐藏后不会再进入视口触发加载，不能藏
-const CARD_SKELETON = '[class*="Skeleton"],[class*="Placeholder"],[class*="Loading"]';
-
-const setFlag = (el, attr, on) => {
-    if (on === el.hasAttribute(attr)) return;
-    on ? el.setAttribute(attr, '1') : el.removeAttribute(attr);
-};
-
-const markCard = card => {
-    const ecom = card.querySelectorAll(ECOMMERCE);
-
-    // 有商品块：块内文本占绝大多数、块外只剩几个字，才算整卡商品卡。
-    // 用比例而不是绝对字数，避免正文偏短的回答被误杀
-    if (ecom.length) {
-        let ecomLen = 0;
-        for (const el of ecom) ecomLen += el.textContent.length;
-        const rest = card.textContent.length - ecomLen;
-        setFlag(card, EMPTY_ATTR, rest < EMPTY_KEEP && rest * 2 < ecomLen);
-        return setFlag(card, BLANK_ATTR, false);
-    }
-
-    // 内容是否还在：正文结构、图片视频，或者一小段文字（"还有 N 个动态被收起"这类
-    // 功能性卡片只有文字，不能当空壳）。有正文结构时不做 textContent 统计
-    const blank = !card.querySelector(CARD_CONTENT) && !card.querySelector(CARD_SKELETON)
-        && card.textContent.trim().length < BLANK_KEEP;
-    setFlag(card, BLANK_ATTR, blank);
-};
-
-// 商品块可能整卡也可能插在正文中间，整卡扫描只在维护与新增节点时做
-const markCards = (root = document) => {
-    for (const el of root.querySelectorAll(FEED_ITEMS)) markCard(el);
-};
-
-const blockAds = () => {
-    document.querySelectorAll(C.S.ads).forEach(ad => ad.remove());
-    document.querySelectorAll('.TopstoryItem-isRecommend').forEach(card => {
-        if (!card.textContent.trim()) card.remove();
-    });
-};
-
 // 空闲时段执行全量维护，避免与知乎自身的首屏渲染抢主线程
 const idle = fn => ('requestIdleCallback' in window ? requestIdleCallback(fn, { timeout: 1200 }) : setTimeout(fn, 0));
 
 const maintain = () => idle(() => {
-    addPublishTime();
-    blockAds();
-    markCards();
-    markFolded(document);
+    removeAds();
+    scanCards();
 });
 
 // ==================== 观察者 ====================
