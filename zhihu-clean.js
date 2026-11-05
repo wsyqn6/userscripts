@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎净化
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      3.0
-// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、方向键切图、未展开显示回答时间、长列表性能优化
+// @version      3.5
+// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、方向键切图、未展开显示回答时间、长列表性能优化、图片屏蔽（原位占位图标）、标签页标题低调化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -43,6 +43,15 @@ const C = {
 };
 
 let currentTheme = 'light';
+
+// 图片屏蔽的作用域与排除项：隐藏规则、占位规则共用，避免选择器散落两处
+// 只取正文（折叠态与展开态同结构）和评论区，不碰顶栏等 UI 区
+const IMG_SCOPE = '.RichContent,.RichContent-inner,.Post-RichText,.AnswerCard,.QuestionRichText,.CommentItemV2,.CommentContent,.RichText';
+// 头像/表情：知乎这几类都是 img 自身带类，另兜底旧式 .Avatar 容器。CSS 与 JS 共用同一份来源
+// sticker 是评论区的表情贴纸，尺寸不大但属于 UI，同样要留着
+const IMG_UI_PARTS = ['[class*="Avatar" i]', '[class*="Emoji" i]', '[class*="sticker" i]', '.Avatar img'];
+const IMG_UI = IMG_UI_PARTS.map(s => `:not(${s})`).join('');
+const IMG_UI_SEL = IMG_UI_PARTS.join(',');
 
 // ==================== CSS 样式 ====================
 const CSS = `
@@ -138,14 +147,17 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .RichContent-inner img,.Post-RichText img,.AnswerCard img{max-width:70%!important;height:auto!important;border-radius:8px!important}
 /* 方向键切图的高亮：内描边不会像 outline 那样被 content-visibility 的 paint containment 裁掉 */
 .zhihu-img-focus{box-shadow:inset 0 0 0 3px var(--lk)!important;border-radius:8px!important}
-/* 首页折叠回答内图片隐藏（展开后自动恢复，可开关） */
-html[data-zhihu-home][data-hide-fold-img] .RichContent.is-collapsed img,
-html[data-zhihu-home][data-hide-fold-img] .RichContent-inner.is-collapsed img,
-html[data-zhihu-home][data-hide-fold-img] .ContentItem.is-collapsed img,
-html[data-zhihu-home][data-hide-fold-img] [data-zhihu-folded] .RichContent img,
-html[data-zhihu-home][data-hide-fold-img] [data-zhihu-folded] .RichContent figure,
-html[data-zhihu-home][data-hide-fold-img] [data-zhihu-folded] .RichContent .RichText-figure,
-html[data-zhihu-home][data-hide-fold-img] [data-zhihu-folded] .RichContent .RichText-figure-wrapper{display:none!important}
+/* 屏蔽内容图片（可开关）：折叠态、展开态、评论区共用这一条，头像与表情由 IMG_UI 排除。
+   占位直接画在 img 上而不是父容器上：img 是替换元素没有伪元素，但 content 能换掉它的内容，
+   换成 1x1 透明图后 background 就露出来了——淡灰底 + 居中图标 + inset 边框即占位块，
+   图注、正文文字、容器宽度都不受影响。宽高比由 JS 记到 aspect-ratio 上（见 markImg），
+   否则 height:auto 会按替换物的 1:1 比例重算，把占位块撑成正方形 */
+html[data-hide-img] :is(${IMG_SCOPE}) img${IMG_UI}[data-zhihu-ph]{
+    content:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E")!important;
+    background:rgba(128,128,128,0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b8b' stroke-width='1.4'%3E%3Crect x='3' y='5' width='18' height='14' rx='2.5'/%3E%3Ccircle cx='8.6' cy='10.2' r='1.4'/%3E%3Cpath d='M21 16.2l-5.2-5.2-6.1 6.1'/%3E%3C/svg%3E") center/32px no-repeat!important;
+    box-shadow:inset 0 0 0 1px rgba(128,128,128,0.28)!important;
+    border-radius:8px!important
+}
 /* 首页文章卡屏蔽（可开关） */
 html[data-zhihu-home][data-hide-article] [data-zhihu-article]{display:none!important}
 /* 带货商品卡屏蔽（可开关）：知乎好物推荐/商业化组件，正常回答不会出现 */
@@ -180,14 +192,34 @@ html[data-hide-nav] .AppHeader a[href$="/creator"]:not(.AppHeader-profileMenu a)
 const STORAGE_KEY = 'zhihu-theme';
 // 功能开关配置：新增开关只加一条，菜单与状态持久化自动生效
 const TOGGLES = [
-    { label: '折叠回答图片', attr: 'data-hide-fold-img', key: 'zhihu-hide-fold-img', def: true },
+    { label: '屏蔽所有图片', attr: 'data-hide-img', key: 'zhihu-hide-img', def: true, legacy: 'zhihu-hide-fold-img' },
     { label: '屏蔽首页文章', attr: 'data-hide-article', key: 'zhihu-hide-article', def: false },
     { label: '屏蔽商品卡', attr: 'data-hide-ecommerce', key: 'zhihu-hide-ecommerce', def: true },
-    { label: '方向键切图', attr: 'data-key-img', key: 'zhihu-key-img', def: true },
+    { label: '方向键切图', attr: 'data-key-img', key: 'zhihu-key-img', def: true, dep: 'data-hide-img' },
     { label: '未展开也显示时间', attr: 'data-time-api', key: 'zhihu-time-api', def: true },
-    { label: '精简导航栏', attr: 'data-hide-nav', key: 'zhihu-hide-nav', def: true }
+    { label: '精简导航栏', attr: 'data-hide-nav', key: 'zhihu-hide-nav', def: true },
+    { label: '标题低调化', attr: 'data-hide-title', key: 'zhihu-hide-title', def: true }
 ];
-const readToggle = t => { const v = localStorage.getItem(t.key); return v === null ? t.def : v === '1'; };
+const readToggle = t => {
+    const v = localStorage.getItem(t.key);
+    if (v !== null) return v === '1';
+    // 旧开关（折叠回答图片）迁移：沿用用户原有偏好
+    if (t.legacy) {
+        const lv = localStorage.getItem(t.legacy);
+        if (lv !== null) return lv === '1';
+    }
+    return t.def;
+};
+
+// ==================== 首页判定 ====================
+// 「屏蔽首页文章」只在首页信息流生效，用 html 上的标记限定作用范围
+const HOME_ATTR = 'data-zhihu-home';
+
+const syncHomeFlag = () => {
+    const r = document.documentElement;
+    if (location.pathname === '/') r.setAttribute(HOME_ATTR, '1');
+    else r.removeAttribute(HOME_ATTR);
+};
 
 // ==================== 工具函数 ====================
 const timeCache = new Map();
@@ -314,7 +346,7 @@ const createThemeMenu = () => {
         row.setAttribute('role', 'switch');
         row.setAttribute('aria-checked', on ? 'true' : 'false');
         row.innerHTML = `<span>${t.label}</span><span class="theme-toggle-switch"></span>`;
-        row.onclick = e => { e.stopPropagation(); setToggle(t, !readToggle(t)); };
+        row.onclick = e => { e.stopPropagation(); if (row.getAttribute('aria-disabled') === 'true') return; setToggle(t, !readToggle(t)); };
         menu.appendChild(row);
     });
 
@@ -332,11 +364,72 @@ const setToggle = (t, on) => {
     document.documentElement.toggleAttribute(t.attr, on);
     const row = document.querySelector(`.theme-toggle[data-toggle="${t.key}"]`);
     if (row) row.setAttribute('aria-checked', on ? 'true' : 'false');
-    // 时间补全开关打开时，已渲染的卡片还没发起过探测，补一遍
-    if (t.attr === 'data-time-api' && on) scanCards();
+    // 时间补全 / 图片屏蔽打开时，已渲染的卡片还没处理过，补一遍
+    if (on && (t.attr === 'data-time-api' || t.attr === 'data-hide-img')) scanCards();
+    // 标题开关：开→立刻整理当前标题，关→还原原标题
+    if (t.attr === TITLE_ATTR) {
+        if (on) tidyTitle();
+        else if (rawTitle) document.title = rawTitle;
+    }
+    syncToggleDeps();
 };
 
 const applyToggles = () => TOGGLES.forEach(t => document.documentElement.toggleAttribute(t.attr, readToggle(t)));
+
+// ==================== 标签页标题低调化 ====================
+// 去掉标题里的站点标识，首页换成中性词，标签页不再一眼看出是知乎。
+// 知乎是 SPA，路由切换会重写 title，用 MutationObserver 跟着改；
+// tidy 结果对自身幂等（处理过的标题不会再次变化），所以不会自激循环。
+const TITLE_ATTR = 'data-hide-title';
+const TITLE_NEUTRAL = '首页';
+const TITLE_SUFFIX = /\s*[-_|]\s*知乎(?:专栏|圆桌|书店)?\s*$/;
+const TITLE_PURE = /^知乎(?:\s*[-_|]\s*有问题，就会有答案)?$/;
+// 「(9 封私信) 」这类未读提示是知乎状态栏的一部分，与页面内容无关，一并摘掉
+const TITLE_NOISE = /^[(（]\s*\d+\s*(?:封私信|条未读|条消息)\s*[)）]\s*/;
+
+let rawTitle = '';
+
+const tidyTitle = () => {
+    if (!document.documentElement.hasAttribute(TITLE_ATTR)) return;
+    const raw = document.title;
+    // 页面还没给出标题（加载早期为空白）时不动，等它写入后观察器会再触发
+    if (!raw) return;
+    let t = raw.replace(TITLE_NOISE, '').replace(TITLE_SUFFIX, '').trim();
+    if (!t || TITLE_PURE.test(t)) t = TITLE_NEUTRAL;
+    if (t === raw) return;
+    if (raw !== TITLE_NEUTRAL) rawTitle = raw;   // 记下原标题，关开关时还原
+    document.title = t;
+};
+
+const initTitleTidy = () => {
+    tidyTitle();
+    if (!window.MutationObserver) return;
+    // 观察 head 而不是 title 元素：脚本可能在 title 解析出来之前执行，
+    // 站点也可能整个替换 title 节点，盯 head 两种情况都能覆盖
+    let pending = false;
+    const schedule = () => {
+        if (pending) return;
+        pending = true;
+        setTimeout(() => { pending = false; tidyTitle(); }, 50);
+    };
+    new MutationObserver(schedule).observe(document.head || document.documentElement, {
+        childList: true, subtree: true, characterData: true
+    });
+};
+
+// 开关依赖：被依赖项开启时，依赖它的开关失效——置灰且不可点
+// 目前只有「方向键切图」依赖「屏蔽所有图片」（图片不可见时无从定位）
+const syncToggleDeps = () => {
+    for (const t of TOGGLES) {
+        if (!t.dep) continue;
+        const row = document.querySelector(`.theme-toggle[data-toggle="${t.key}"]`);
+        if (!row) continue;
+        const off = document.documentElement.hasAttribute(t.dep);
+        row.setAttribute('aria-disabled', off ? 'true' : 'false');
+        row.style.opacity = off ? '0.45' : '';
+        row.style.cursor = off ? 'not-allowed' : '';
+    }
+};
 
 // ==================== 滚动联动：顶栏隐藏 + 回到顶部 ====================
 let backTopBtn = null;
@@ -389,11 +482,12 @@ const CARD_SEL = '.AnswerItem,.ArticleItem,.Post-RichText,.TopstoryItem,.Content
 
 let imgHlTimer = 0;
 
-// 卡片内可跳转的正文图（文档序）：排除头像/图标、被脚本隐藏的折叠图，
+// 卡片内可跳转的正文图（文档序）：排除头像/图标、被隐藏（visibility:hidden）的图，
 // 以及折叠回答裁切容器里的图（滚过去也看不见，只会滚内部容器）
 const cardImages = card => [...card.querySelectorAll('img')].filter(m => {
     if (m.closest('.Avatar,.RichContent-emoji,.RichText-emoji')) return false;
-    if (getComputedStyle(m).display === 'none') return false;
+    const cs = getComputedStyle(m);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return false;
     if (m.naturalWidth < IMG_MIN && m.getBoundingClientRect().width < IMG_MIN) return false;
     for (let n = m.parentElement; n && n !== card; n = n.parentElement) {
         const cs = getComputedStyle(n);
@@ -464,6 +558,8 @@ const initImageKeys = () => {
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
         if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
         if (!document.documentElement.hasAttribute('data-key-img')) return;
+        // 图片被屏蔽时没有可定位的图，方向键交回页面（滚动）处理
+        if (document.documentElement.hasAttribute('data-hide-img')) return;
         // 输入框、视频与轮播组件内的方向键保持站点原生行为
         if (e.target.closest?.('input,textarea,[contenteditable="true"],video,[class*="Video"],[class*="ZVideo"]')) return;
         if (overlayOpen()) return;
@@ -644,83 +740,12 @@ const collapseAnswers = () => {
     setTimeout(() => scanCards(), 600);
 };
 
-// ==================== 首页折叠回答图片屏蔽 ====================
-const HOME_ATTR = 'data-zhihu-home';
-const FOLDED_ATTR = 'data-zhihu-folded';
-const SHELL_SEL = '.TopstoryItem, .List-item';
-
-const syncHomeFlag = () => {
-    const r = document.documentElement;
-    if (location.pathname === '/') r.setAttribute(HOME_ATTR, '1');
-    else r.removeAttribute(HOME_ATTR);
-};
-
-const hasReadMore = item => {
-    for (const el of item.querySelectorAll('.ContentItem-more, .RichContent-collapsedText')) {
-        if (el.textContent.includes('阅读全文')) return true;
-    }
-    return false;
-};
-
-// 折叠判定：类名优先短路，再查"阅读全文"文案（每张卡最多各一次查询）
-const isFolded = item =>
-    item.querySelector('.RichContent.is-collapsed,.RichContent-inner.is-collapsed,.ContentItem.is-collapsed') ? true : hasReadMore(item);
-
-// 几何兜底：正文被容器裁切即为折叠。读布局会强制重排，只在卡片可见时调用
-const isClipped = item => {
-    const inner = item.querySelector('.RichContent-inner, .RichContent');
-    if (!inner) return false;
-    return getComputedStyle(inner).overflowY !== 'visible' && inner.scrollHeight > inner.clientHeight + 8;
-};
-
-const applyFold = (item, geometry) => {
-    let folded;
-    if (isFolded(item)) folded = true;
-    else if (geometry) folded = isClipped(item);
-    else folded = item.hasAttribute(FOLDED_ATTR); // 几何未知时保持现状，避免误判闪烁
-    if (folded) item.setAttribute(FOLDED_ATTR, '1');
-    else item.removeAttribute(FOLDED_ATTR);
-};
-
-// 几何检测会强制重排，且离屏卡片尺寸不可靠，改为进入视口后再测一次
-let foldIO = null;
-const watchedItems = new WeakSet();
-
-const onFoldIntersect = entries => {
-    for (const en of entries) {
-        if (!en.isIntersecting) continue;
-        const item = en.target;
-        foldIO.unobserve(item);
-        // 等这一帧完成布局再读尺寸
-        requestAnimationFrame(() => { if (item.isConnected) applyFold(item, true); });
-    }
-};
-
-const probeWhenVisible = item => {
-    if (watchedItems.has(item)) return;
-    watchedItems.add(item);
-    if (!('IntersectionObserver' in window)) { applyFold(item, true); return; }
-    if (!foldIO) foldIO = new IntersectionObserver(onFoldIntersect, { rootMargin: '200px 0px' });
-    foldIO.observe(item);
-};
-
-// 展开/收起后重新判定（文案或类名变化不一定触发子节点观察）
-const initFoldWatcher = () => {
-    document.addEventListener('click', e => {
-        if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
-        const btn = e.target.closest?.('.ContentItem-more, .ContentItem-rightButton, .RichContent-collapsedText');
-        if (!btn) return;
-        const card = btn.closest(SHELL_SEL);
-        if (card) setTimeout(() => scanCards(card, true), 300);
-    }, true);
-    window.addEventListener('load', () => scanCards());
-};
-
 // ==================== 卡片管线 ====================
 // 首页/问题页的卡片要做的判定全在这里，入口只有 scanCards 一个：
-//   外壳（带 border 的那层）：整卡商品、空壳、文章标记、折叠
+//   外壳（带 border 的那层）：整卡商品、空壳、文章标记
 //   内容项（带时间的那层）：发布/编辑时间、文章标签
 // 单次遍历同时处理两类节点，新增节点与全量维护共用同一条路径。
+const SHELL_SEL = '.TopstoryItem, .List-item';
 const ITEM_SEL = '.AnswerItem, .List-item, .ArticleItem, .SearchResultItem';
 const SCAN_SEL = SHELL_SEL + ', .AnswerItem, .ArticleItem, .SearchResultItem';
 
@@ -763,16 +788,13 @@ const markCommerce = card => {
     setFlag(card, BLANK_ATTR, blank);
 };
 
-// 外壳判定：商品/空壳 → 文章卡 → 折叠
-const markShell = (card, geometry) => {
+// 外壳判定：商品/空壳 → 文章卡
+const markShell = card => {
     markCommerce(card);
-    // 文章卡只打标供 CSS 屏蔽，无需折叠判定
+    // 文章卡只打标供 CSS 屏蔽
     if (card.matches('.ArticleItem') || card.querySelector('.ArticleItem')) {
         return card.setAttribute(ARTICLE_ATTR, '1');
     }
-    if (!document.documentElement.hasAttribute(HOME_ATTR)) return;
-    applyFold(card, geometry);
-    probeWhenVisible(card);
 };
 
 // 内容项判定：时间 + 文章标签。问题页 .List-item 包着 .AnswerItem，只在最内层做
@@ -782,14 +804,38 @@ const markItem = item => {
     addArticleTag(item);
 };
 
-const scanNode = (node, geometry) => {
-    if (node.matches(SHELL_SEL)) markShell(node, geometry);
-    if (node.matches(ITEM_SEL)) markItem(node);
+// ==================== 图片占位 ====================
+// CSS 用 content 换掉了图片内容，height:auto 会按替换物（1x1）的比例把占位块算成正方形，
+// 这里把原图宽高比记到 aspect-ratio 上，占位块才与原图同尺寸。
+// 懒加载图片此刻可能还没尺寸，挂一次性 load 回调补算；开关关闭时整段直接跳过
+const PH_ATTR = 'data-zhihu-ph';
+const PH_MIN = 60;      // 小于这个边长的多半是追踪像素/装饰小图，不参与屏蔽
+
+const markImg = img => {
+    if (img.hasAttribute(PH_ATTR) || img.matches(IMG_UI_SEL)) return;
+    const w = img.naturalWidth || Number(img.getAttribute('width')) || Math.round(img.getBoundingClientRect().width);
+    const h = img.naturalHeight || Number(img.getAttribute('height')) || Math.round(img.getBoundingClientRect().height);
+    if (!w || !h) { img.addEventListener('load', () => markImg(img), { once: true }); return; }
+    if (w < PH_MIN || h < PH_MIN) return;
+    img.style.aspectRatio = `${w} / ${h}`;
+    img.setAttribute(PH_ATTR, '1');
 };
 
-const scanCards = (root = document, geometry = false) => {
-    if (root.nodeType === 1) scanNode(root, geometry);
-    for (const node of root.querySelectorAll(SCAN_SEL)) scanNode(node, geometry);
+const markImages = root => {
+    if (!document.documentElement.hasAttribute('data-hide-img')) return;
+    if (root.matches?.('img')) markImg(root);
+    for (const img of root.querySelectorAll?.('img') || []) markImg(img);
+};
+
+const scanNode = node => {
+    if (node.matches(SHELL_SEL)) markShell(node);
+    if (node.matches(ITEM_SEL)) markItem(node);
+    markImages(node);
+};
+
+const scanCards = (root = document) => {
+    if (root.nodeType === 1) scanNode(root);
+    for (const node of root.querySelectorAll(SCAN_SEL)) scanNode(node);
 };
 
 // 广告与空推荐位直接删节点（display:none 会留下卡片外壳，站点导航也仍会走到它）
@@ -840,7 +886,7 @@ const flushNodes = () => {
         // 内容插进已有卡片（懒加载、骨架屏补内容）时也要重新判定，避免外壳被判空后
         // 一直隐藏：从新增节点往上找最近的卡片
         const owner = n.parentElement?.closest(SCAN_SEL);
-        if (owner) scanNode(owner, false);
+        if (owner) scanNode(owner);
     }
 
     // 还有积压就留到下一轮，保持单次工作量可控
@@ -896,7 +942,6 @@ const cleanup = () => {
     observers = [];
     if (flushHandle) { clearTimeout(flushHandle); flushHandle = 0; }
     pendingNodes.clear();
-    if (foldIO) { foldIO.disconnect(); foldIO = null; }
     if (timeIO) { timeIO.disconnect(); timeIO = null; }
     if (timeSaveTimer) { clearTimeout(timeSaveTimer); timeSaveTimer = 0; }
     timeQueue.length = 0;
@@ -920,16 +965,23 @@ const init = () => {
     const saved = localStorage.getItem(STORAGE_KEY);
     setTheme(C.THEMES[saved] ? saved : 'light');
 
-    // 首页折叠回答图片屏蔽 + 功能开关
+    // 功能开关（含屏蔽所有图片）
     syncHomeFlag();
     applyToggles();
-    initFoldWatcher();
-    
+    // 首屏图片先记下宽高比，避免占位块在扫描前被当成正方形
+    markImages(document);
+    // 标题低调化（含路由切换后的重写监听）
+    initTitleTidy();
+
     // 创建主题菜单与滚动联动（顶栏隐藏 + 回到顶部）
     createThemeMenu();
+    syncToggleDeps();
     initScrollEffects();
     initImageKeys();
-    
+
+    // 页面加载完成后再扫一遍，补上首屏之后才渲染的卡片
+    window.addEventListener('load', () => scanCards());
+
     // 延迟处理页面内容（等待知乎数据加载）
     const isHome = location.pathname === '/' || location.pathname === '';
     setTimeout(() => {

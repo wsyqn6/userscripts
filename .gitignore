@@ -4,6 +4,10 @@
 # 调试产物
 *.log
 shot*.png
+*.pid
+
+# 临时工作目录（本地脚本、缓存、下载物，不入库）
+temp/
 
 # 依赖
 node_modules/
