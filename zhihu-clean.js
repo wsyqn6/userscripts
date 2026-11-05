@@ -44,11 +44,10 @@ const C = {
 
 let currentTheme = 'light';
 
-// 图片屏蔽的作用域与排除项：隐藏规则、占位规则共用，避免选择器散落两处
-// 只取正文（折叠态与展开态同结构）和评论区，不碰顶栏等 UI 区
+// 图片屏蔽的作用域与排除项：CSS 隐藏/占位与 JS 打标共用同一份来源。
+// 作用域只取正文（折叠与展开同结构）和评论区；头像、表情、评论贴纸都是 img 自身带类
+// （不是后代），另兜底旧式 .Avatar 容器
 const IMG_SCOPE = '.RichContent,.RichContent-inner,.Post-RichText,.AnswerCard,.QuestionRichText,.CommentItemV2,.CommentContent,.RichText';
-// 头像/表情：知乎这几类都是 img 自身带类，另兜底旧式 .Avatar 容器。CSS 与 JS 共用同一份来源
-// sticker 是评论区的表情贴纸，尺寸不大但属于 UI，同样要留着
 const IMG_UI_PARTS = ['[class*="Avatar" i]', '[class*="Emoji" i]', '[class*="sticker" i]', '.Avatar img'];
 const IMG_UI = IMG_UI_PARTS.map(s => `:not(${s})`).join('');
 const IMG_UI_SEL = IMG_UI_PARTS.join(',');
@@ -136,22 +135,19 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .back-to-top:hover{transform:translateY(-2px) scale(1.08)!important;box-shadow:0 6px 20px rgba(0,0,0,0.18)!important;color:var(--lk)!important}
 .back-to-top:active{transform:scale(0.96)!important}
 .back-to-top svg{width:22px!important;height:22px!important;display:block!important;fill:currentColor!important}
-/* 长列表渲染优化：离屏卡片跳过布局与绘制，长期浏览后仍保持滚动流畅
-   只用于首页 feed 卡片——高度稳定（实测中位 144px），估算误差小；
-   问题页回答高度从 500 到上万 px 不等，按估算高度跳过会让整页高度失真 */
+/* 长列表渲染优化：离屏卡片跳过布局与绘制。只用于首页 feed（高度稳定），
+   问题页回答高度从 500 到上万 px 不等，按估算高度跳过会让整页高度失真；
+   :focus 时退出跳过，否则 paint containment 会裁掉选中光圈 */
 .TopstoryItem{content-visibility:auto!important;contain-intrinsic-size:auto 200px!important}
-/* content-visibility 自带 paint containment，会裁掉卡片溢出的选中光圈；
-   当前键盘选中的卡片退出 content-visibility，只影响一张卡，无性能代价 */
 .TopstoryItem:focus{content-visibility:visible!important}
 /* 图片样式 */
 .RichContent-inner img,.Post-RichText img,.AnswerCard img{max-width:70%!important;height:auto!important;border-radius:8px!important}
 /* 方向键切图的高亮：内描边不会像 outline 那样被 content-visibility 的 paint containment 裁掉 */
 .zhihu-img-focus{box-shadow:inset 0 0 0 3px var(--lk)!important;border-radius:8px!important}
-/* 屏蔽内容图片（可开关）：折叠态、展开态、评论区共用这一条，头像与表情由 IMG_UI 排除。
-   占位直接画在 img 上而不是父容器上：img 是替换元素没有伪元素，但 content 能换掉它的内容，
-   换成 1x1 透明图后 background 就露出来了——淡灰底 + 居中图标 + inset 边框即占位块，
-   图注、正文文字、容器宽度都不受影响。宽高比由 JS 记到 aspect-ratio 上（见 markImg），
-   否则 height:auto 会按替换物的 1:1 比例重算，把占位块撑成正方形 */
+/* 屏蔽内容图片（可开关），折叠/展开/评论区共用，头像与表情由 IMG_UI 排除。
+   占位画在 img 自身：img 是替换元素没有伪元素，但 content 能换掉内容，换成 1x1 透明图后
+   background 就露出来（淡灰底 + 居中图标 + 内描边）。宽高比由 JS 写进 aspect-ratio，
+   否则 height:auto 会按 1:1 重算，把占位块撑成正方形 */
 html[data-hide-img] :is(${IMG_SCOPE}) img${IMG_UI}[data-zhihu-ph]{
     content:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E")!important;
     background:rgba(128,128,128,0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b8b' stroke-width='1.4'%3E%3Crect x='3' y='5' width='18' height='14' rx='2.5'/%3E%3Ccircle cx='8.6' cy='10.2' r='1.4'/%3E%3Cpath d='M21 16.2l-5.2-5.2-6.1 6.1'/%3E%3C/svg%3E") center/32px no-repeat!important;
@@ -211,28 +207,26 @@ const readToggle = t => {
     return t.def;
 };
 
-// ==================== 首页判定 ====================
+// ==================== 页面判定 ====================
 // 「屏蔽首页文章」只在首页信息流生效，用 html 上的标记限定作用范围
 const HOME_ATTR = 'data-zhihu-home';
+const onHome = () => location.pathname === '/' || location.pathname === '';
+const isQuestionPage = () => location.pathname.includes('/question/');
 
-const syncHomeFlag = () => {
-    const r = document.documentElement;
-    if (location.pathname === '/') r.setAttribute(HOME_ATTR, '1');
-    else r.removeAttribute(HOME_ATTR);
-};
+const syncHomeFlag = () => document.documentElement.toggleAttribute(HOME_ATTR, onHome());
 
 // ==================== 工具函数 ====================
 const timeCache = new Map();
 
+const p2 = n => String(n).padStart(2, '0');
+
 const formatTime = t => {
     if (!t) return '';
-    if (timeCache.has(t)) return timeCache.get(t);
-    const d = new Date(/^\d+$/.test(t) ? parseInt(t) * 1000 : t);
-    const r = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    if (timeCache.size >= C.MAX_CACHE) {
-        const oldest = timeCache.keys().next().value;
-        timeCache.delete(oldest);
-    }
+    const hit = timeCache.get(t);
+    if (hit) return hit;
+    const d = new Date(/^\d+$/.test(t) ? Number(t) * 1000 : t);
+    const r = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    if (timeCache.size >= C.MAX_CACHE) timeCache.delete(timeCache.keys().next().value);
     timeCache.set(t, r);
     return r;
 };
@@ -347,6 +341,7 @@ const createThemeMenu = () => {
         row.setAttribute('aria-checked', on ? 'true' : 'false');
         row.innerHTML = `<span>${t.label}</span><span class="theme-toggle-switch"></span>`;
         row.onclick = e => { e.stopPropagation(); if (row.getAttribute('aria-disabled') === 'true') return; setToggle(t, !readToggle(t)); };
+        t.el = row;     // 记住行节点，切开关时不必再全文查询
         menu.appendChild(row);
     });
 
@@ -362,8 +357,7 @@ const createThemeMenu = () => {
 const setToggle = (t, on) => {
     localStorage.setItem(t.key, on ? '1' : '0');
     document.documentElement.toggleAttribute(t.attr, on);
-    const row = document.querySelector(`.theme-toggle[data-toggle="${t.key}"]`);
-    if (row) row.setAttribute('aria-checked', on ? 'true' : 'false');
+    if (t.el) t.el.setAttribute('aria-checked', on ? 'true' : 'false');
     // 时间补全 / 图片屏蔽打开时，已渲染的卡片还没处理过，补一遍
     if (on && (t.attr === 'data-time-api' || t.attr === 'data-hide-img')) scanCards();
     // 标题开关：开→立刻整理当前标题，关→还原原标题
@@ -380,13 +374,11 @@ const applyToggles = () => TOGGLES.forEach(t => document.documentElement.toggleA
 // 去掉标题里的站点标识，首页换成中性词，标签页不再一眼看出是知乎。
 // 知乎是 SPA，路由切换会重写 title，用 MutationObserver 跟着改；
 // tidy 结果对自身幂等（处理过的标题不会再次变化），所以不会自激循环。
-const TITLE_ATTR = 'data-hide-title';
-const TITLE_NEUTRAL = '首页';
+const TITLE_ATTR = 'data-hide-title', TITLE_NEUTRAL = '首页';
 const TITLE_SUFFIX = /\s*[-_|]\s*知乎(?:专栏|圆桌|书店)?\s*$/;
 const TITLE_PURE = /^知乎(?:\s*[-_|]\s*有问题，就会有答案)?$/;
-// 「(9 封私信) 」这类未读提示是知乎状态栏的一部分，与页面内容无关，一并摘掉
+// 「(9 封私信) 」这类未读提示属于知乎状态栏，与页面内容无关，一并摘掉
 const TITLE_NOISE = /^[(（]\s*\d+\s*(?:封私信|条未读|条消息)\s*[)）]\s*/;
-
 let rawTitle = '';
 
 const tidyTitle = () => {
@@ -412,22 +404,21 @@ const initTitleTidy = () => {
         pending = true;
         setTimeout(() => { pending = false; tidyTitle(); }, 50);
     };
-    new MutationObserver(schedule).observe(document.head || document.documentElement, {
-        childList: true, subtree: true, characterData: true
-    });
+    const mo = new MutationObserver(schedule);
+    mo.observe(document.head || document.documentElement, { childList: true, subtree: true, characterData: true });
+    observers.push(mo);     // 和其它观察器一起在 cleanup 里断开
 };
 
 // 开关依赖：被依赖项开启时，依赖它的开关失效——置灰且不可点
 // 目前只有「方向键切图」依赖「屏蔽所有图片」（图片不可见时无从定位）
 const syncToggleDeps = () => {
+    const r = document.documentElement;
     for (const t of TOGGLES) {
-        if (!t.dep) continue;
-        const row = document.querySelector(`.theme-toggle[data-toggle="${t.key}"]`);
-        if (!row) continue;
-        const off = document.documentElement.hasAttribute(t.dep);
-        row.setAttribute('aria-disabled', off ? 'true' : 'false');
-        row.style.opacity = off ? '0.45' : '';
-        row.style.cursor = off ? 'not-allowed' : '';
+        if (!t.dep || !t.el) continue;
+        const off = r.hasAttribute(t.dep);
+        t.el.setAttribute('aria-disabled', off ? 'true' : 'false');
+        t.el.style.opacity = off ? '0.45' : '';
+        t.el.style.cursor = off ? 'not-allowed' : '';
     }
 };
 
@@ -741,10 +732,8 @@ const collapseAnswers = () => {
 };
 
 // ==================== 卡片管线 ====================
-// 首页/问题页的卡片要做的判定全在这里，入口只有 scanCards 一个：
-//   外壳（带 border 的那层）：整卡商品、空壳、文章标记
-//   内容项（带时间的那层）：发布/编辑时间、文章标签
-// 单次遍历同时处理两类节点，新增节点与全量维护共用同一条路径。
+// 首页/问题页的卡片判定都走 scanCards：外壳（带 border）判商品/空壳/文章，
+// 内容项（带时间）判发布时间/文章标签。新增节点与全量维护共用同一条路径。
 const SHELL_SEL = '.TopstoryItem, .List-item';
 const ITEM_SEL = '.AnswerItem, .List-item, .ArticleItem, .SearchResultItem';
 const SCAN_SEL = SHELL_SEL + ', .AnswerItem, .ArticleItem, .SearchResultItem';
@@ -805,16 +794,17 @@ const markItem = item => {
 };
 
 // ==================== 图片占位 ====================
-// CSS 用 content 换掉了图片内容，height:auto 会按替换物（1x1）的比例把占位块算成正方形，
-// 这里把原图宽高比记到 aspect-ratio 上，占位块才与原图同尺寸。
-// 懒加载图片此刻可能还没尺寸，挂一次性 load 回调补算；开关关闭时整段直接跳过
+// aspect-ratio 记下原图宽高比，否则占位块会被 1x1 替换物撑成正方形。
+// 未加载的图挂一次性 load 回调补算；开关关闭时整段跳过
 const PH_ATTR = 'data-zhihu-ph';
 const PH_MIN = 60;      // 小于这个边长的多半是追踪像素/装饰小图，不参与屏蔽
 
 const markImg = img => {
     if (img.hasAttribute(PH_ATTR) || img.matches(IMG_UI_SEL)) return;
-    const w = img.naturalWidth || Number(img.getAttribute('width')) || Math.round(img.getBoundingClientRect().width);
-    const h = img.naturalHeight || Number(img.getAttribute('height')) || Math.round(img.getBoundingClientRect().height);
+    // 只认图片自身的尺寸：读 getBoundingClientRect 会强制重排，全量扫描时开销明显；
+    // 未加载的图挂一次性 load 回调补算即可
+    const w = img.naturalWidth || Number(img.getAttribute('width'));
+    const h = img.naturalHeight || Number(img.getAttribute('height'));
     if (!w || !h) { img.addEventListener('load', () => markImg(img), { once: true }); return; }
     if (w < PH_MIN || h < PH_MIN) return;
     img.style.aspectRatio = `${w} / ${h}`;
@@ -830,23 +820,25 @@ const markImages = root => {
 const scanNode = node => {
     if (node.matches(SHELL_SEL)) markShell(node);
     if (node.matches(ITEM_SEL)) markItem(node);
-    markImages(node);
 };
 
 const scanCards = (root = document) => {
     if (root.nodeType === 1) scanNode(root);
     for (const node of root.querySelectorAll(SCAN_SEL)) scanNode(node);
+    // 图片放在遍历之后统一处理：卡片是嵌套的（.List-item 包着 .AnswerItem），
+    // 逐个 scanNode 会把同一棵子树里的 img 扫两遍
+    markImages(root);
 };
 
 // 广告与空推荐位直接删节点（display:none 会留下卡片外壳，站点导航也仍会走到它）
+// 推荐位只在没有文字时才删：有文字的推荐卡是正常内容
+const RECOMMEND = '.TopstoryItem-isRecommend';
+const isAd = el => el.matches(C.S.ads) || (el.matches(RECOMMEND) && !el.textContent.trim());
+
 const removeAds = (root = document) => {
-    if (root.nodeType === 1) {
-        if (root.matches(C.S.ads)) return root.remove();
-        if (root.matches('.TopstoryItem-isRecommend') && !root.textContent.trim()) return root.remove();
-    }
-    for (const ad of root.querySelectorAll(C.S.ads)) ad.remove();
-    for (const card of root.querySelectorAll('.TopstoryItem-isRecommend')) {
-        if (!card.textContent.trim()) card.remove();
+    if (root.nodeType === 1 && isAd(root)) return root.remove();
+    for (const el of root.querySelectorAll(`${C.S.ads}, ${RECOMMEND}`)) {
+        if (isAd(el)) el.remove();
     }
 };
 
@@ -886,7 +878,7 @@ const flushNodes = () => {
         // 内容插进已有卡片（懒加载、骨架屏补内容）时也要重新判定，避免外壳被判空后
         // 一直隐藏：从新增节点往上找最近的卡片
         const owner = n.parentElement?.closest(SCAN_SEL);
-        if (owner) scanNode(owner);
+        if (owner) scanCards(owner);
     }
 
     // 还有积压就留到下一轮，保持单次工作量可控
@@ -921,7 +913,7 @@ const createObservers = () => {
         syncHomeFlag();
         urlTimeout = setTimeout(() => { 
             maintain();
-            if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
+            if (isQuestionPage()) setTimeout(collapseAnswers, C.SCROLL_DELAY);
         }, C.URL_DELAY);
     };
     
@@ -983,12 +975,11 @@ const init = () => {
     window.addEventListener('load', () => scanCards());
 
     // 延迟处理页面内容（等待知乎数据加载）
-    const isHome = location.pathname === '/' || location.pathname === '';
     setTimeout(() => {
         maintain();
         // 问题详情页自动收起回答
-        if (location.href.includes('/question/')) setTimeout(collapseAnswers, C.SCROLL_DELAY);
-    }, isHome ? C.HOME_DELAY : C.INIT_DELAY);
+        if (isQuestionPage()) setTimeout(collapseAnswers, C.SCROLL_DELAY);
+    }, onHome() ? C.HOME_DELAY : C.INIT_DELAY);
     
     // 创建各种观察者
     createObservers();
