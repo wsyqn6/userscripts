@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎净化
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      3.5
-// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、方向键切图、未展开显示回答时间、长列表性能优化、图片屏蔽（原位占位图标）、标签页标题低调化
+// @version      3.8
+// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、大图查看器左右键/按钮翻图、未展开显示回答时间、长列表性能优化、图片屏蔽（紧凑占位条）、标签页标题低调化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -142,17 +142,43 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .TopstoryItem:focus{content-visibility:visible!important}
 /* 图片样式 */
 .RichContent-inner img,.Post-RichText img,.AnswerCard img{max-width:70%!important;height:auto!important;border-radius:8px!important}
-/* 方向键切图的高亮：内描边不会像 outline 那样被 content-visibility 的 paint containment 裁掉 */
-.zhihu-img-focus{box-shadow:inset 0 0 0 3px var(--lk)!important;border-radius:8px!important}
+/* 大图查看器：站点那层留在 DOM 里当「打开」信号，我们只盖一层 UI。
+   容器不吃指针事件，黑底点击与 Esc 都透给站点遮罩由它自己关闭；只有按钮接管点击，
+   所以视觉和交互都只有一层，不存在双层状态同步 */
+.zhihu-img-overlay{position:fixed!important;inset:0!important;z-index:2147483000!important;background:#111!important;display:none!important;align-items:center!important;justify-content:center!important;pointer-events:none!important}
+.zhihu-img-overlay.show{display:flex!important}
+.zhihu-img-stage{max-width:96vw!important;max-height:92vh!important;width:auto!important;height:auto!important;object-fit:contain!important;user-select:none!important;pointer-events:auto!important}
+/* 左右翻页 + 关闭：主流 lightbox 的圆形半透明按钮 */
+.zhihu-img-nav,.zhihu-img-close{position:absolute!important;z-index:1!important;pointer-events:auto!important;box-sizing:border-box!important;padding:0!important;border:1px solid rgba(255,255,255,0.22)!important;border-radius:50%!important;background-color:rgba(255,255,255,0.10)!important;cursor:pointer!important;transition:background-color .15s ease!important;background-repeat:no-repeat!important;background-position:center!important}
+.zhihu-img-nav{top:50%!important;transform:translateY(-50%)!important;width:44px!important;height:44px!important;background-size:22px 22px!important}
+.zhihu-img-nav.prev{left:24px!important}
+.zhihu-img-nav.next{right:24px!important}
+.zhihu-img-close{top:20px!important;right:20px!important;width:36px!important;height:36px!important;background-size:16px 16px!important}
+.zhihu-img-nav:hover,.zhihu-img-close:hover{background-color:rgba(255,255,255,0.24)!important}
+.zhihu-img-nav:focus-visible,.zhihu-img-close:focus-visible{outline:2px solid #fff!important;outline-offset:2px!important}
+.zhihu-img-nav.prev{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 5l-7 7 7 7'/%3E%3C/svg%3E")!important}
+.zhihu-img-nav.next{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5l7 7-7 7'/%3E%3C/svg%3E")!important}
+.zhihu-img-close{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E")!important}
+/* 页码常驻 */
+.zhihu-img-counter{position:absolute!important;left:50%!important;bottom:24px!important;transform:translateX(-50%)!important;z-index:1!important;padding:5px 12px!important;border-radius:14px!important;background:rgba(0,0,0,0.62)!important;color:#fff!important;font-size:12px!important;line-height:1.4!important;letter-spacing:0.04em!important;pointer-events:none!important}
 /* 屏蔽内容图片（可开关），折叠/展开/评论区共用，头像与表情由 IMG_UI 排除。
    占位画在 img 自身：img 是替换元素没有伪元素，但 content 能换掉内容，换成 1x1 透明图后
-   background 就露出来（淡灰底 + 居中图标 + 内描边）。宽高比由 JS 写进 aspect-ratio，
-   否则 height:auto 会按 1:1 重算，把占位块撑成正方形 */
+   background 就露出来。做成 40px 高的横条，宽度取原图宽度（JS 写 --ph-w，最多 100%），
+   不再按原图宽高比铺开——竖长图原本能吃掉大半屏 */
 html[data-hide-img] :is(${IMG_SCOPE}) img${IMG_UI}[data-zhihu-ph]{
     content:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E")!important;
-    background:rgba(128,128,128,0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b8b' stroke-width='1.4'%3E%3Crect x='3' y='5' width='18' height='14' rx='2.5'/%3E%3Ccircle cx='8.6' cy='10.2' r='1.4'/%3E%3Cpath d='M21 16.2l-5.2-5.2-6.1 6.1'/%3E%3C/svg%3E") center/32px no-repeat!important;
-    box-shadow:inset 0 0 0 1px rgba(128,128,128,0.28)!important;
-    border-radius:8px!important
+    width:min(100%,var(--ph-w,100%))!important;
+    max-width:100%!important;
+    height:40px!important;
+    aspect-ratio:auto!important;
+    border-radius:8px!important;
+    vertical-align:middle!important;
+    background-color:rgba(128,128,128,0.06)!important;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b8b' stroke-width='1.4'%3E%3Crect x='3' y='5' width='18' height='14' rx='2.5'/%3E%3Ccircle cx='8.6' cy='10.2' r='1.4'/%3E%3Cpath d='M21 16.2l-5.2-5.2-6.1 6.1'/%3E%3C/svg%3E"),repeating-linear-gradient(135deg,rgba(128,128,128,0.1) 0 7px,transparent 7px 14px)!important;
+    background-repeat:no-repeat,repeat!important;
+    background-position:14px center,0 0!important;
+    background-size:18px 18px,auto!important;
+    box-shadow:inset 0 0 0 1px rgba(128,128,128,0.2)!important
 }
 /* 首页文章卡屏蔽（可开关） */
 html[data-zhihu-home][data-hide-article] [data-zhihu-article]{display:none!important}
@@ -191,7 +217,6 @@ const TOGGLES = [
     { label: '屏蔽所有图片', attr: 'data-hide-img', key: 'zhihu-hide-img', def: true, legacy: 'zhihu-hide-fold-img' },
     { label: '屏蔽首页文章', attr: 'data-hide-article', key: 'zhihu-hide-article', def: false },
     { label: '屏蔽商品卡', attr: 'data-hide-ecommerce', key: 'zhihu-hide-ecommerce', def: true },
-    { label: '方向键切图', attr: 'data-key-img', key: 'zhihu-key-img', def: true, dep: 'data-hide-img' },
     { label: '未展开也显示时间', attr: 'data-time-api', key: 'zhihu-time-api', def: true },
     { label: '精简导航栏', attr: 'data-hide-nav', key: 'zhihu-hide-nav', def: true },
     { label: '标题低调化', attr: 'data-hide-title', key: 'zhihu-hide-title', def: true }
@@ -340,7 +365,7 @@ const createThemeMenu = () => {
         row.setAttribute('role', 'switch');
         row.setAttribute('aria-checked', on ? 'true' : 'false');
         row.innerHTML = `<span>${t.label}</span><span class="theme-toggle-switch"></span>`;
-        row.onclick = e => { e.stopPropagation(); if (row.getAttribute('aria-disabled') === 'true') return; setToggle(t, !readToggle(t)); };
+        row.onclick = e => { e.stopPropagation(); setToggle(t, !readToggle(t)); };
         t.el = row;     // 记住行节点，切开关时不必再全文查询
         menu.appendChild(row);
     });
@@ -365,7 +390,6 @@ const setToggle = (t, on) => {
         if (on) tidyTitle();
         else if (rawTitle) document.title = rawTitle;
     }
-    syncToggleDeps();
 };
 
 const applyToggles = () => TOGGLES.forEach(t => document.documentElement.toggleAttribute(t.attr, readToggle(t)));
@@ -407,19 +431,6 @@ const initTitleTidy = () => {
     const mo = new MutationObserver(schedule);
     mo.observe(document.head || document.documentElement, { childList: true, subtree: true, characterData: true });
     observers.push(mo);     // 和其它观察器一起在 cleanup 里断开
-};
-
-// 开关依赖：被依赖项开启时，依赖它的开关失效——置灰且不可点
-// 目前只有「方向键切图」依赖「屏蔽所有图片」（图片不可见时无从定位）
-const syncToggleDeps = () => {
-    const r = document.documentElement;
-    for (const t of TOGGLES) {
-        if (!t.dep || !t.el) continue;
-        const off = r.hasAttribute(t.dep);
-        t.el.setAttribute('aria-disabled', off ? 'true' : 'false');
-        t.el.style.opacity = off ? '0.45' : '';
-        t.el.style.cursor = off ? 'not-allowed' : '';
-    }
 };
 
 // ==================== 滚动联动：顶栏隐藏 + 回到顶部 ====================
@@ -465,97 +476,136 @@ const initScrollEffects = () => {
     if (window.scrollY > C.TOP_SHOW) { shownTop = true; backTopBtn.classList.add('show'); }
 };
 
-// ==================== 方向键切图 ====================
-// ←/→ 在「当前回答」内逐张跳图：不实现查看器，只做定位 + 内描边高亮
+// ==================== 大图查看器翻图 ====================
+// 知乎点开正文图后是「全屏遮罩 + 一张 absolute 定位的大图（z-index 999）」，
+// 自带缩放却没有上一张/下一张。这里只在查看器打开时接管 ←/→，
+// 切同一回答内的正文图；页面上的方向键完全不碰，也不需要开关。
 const IMG_MIN = 200;   // 正文图最小边长，用来滤掉头像、图标、表情
-const IMG_HL = 'zhihu-img-focus';
 const CARD_SEL = '.AnswerItem,.ArticleItem,.Post-RichText,.TopstoryItem,.ContentItem';
+const VIEWER_SCORE = 0.3;   // 查看器大图至少占视口 30% 宽高
 
-let imgHlTimer = 0;
-
-// 卡片内可跳转的正文图（文档序）：排除头像/图标、被隐藏（visibility:hidden）的图，
-// 以及折叠回答裁切容器里的图（滚过去也看不见，只会滚内部容器）
-const cardImages = card => [...card.querySelectorAll('img')].filter(m => {
-    if (m.closest('.Avatar,.RichContent-emoji,.RichText-emoji')) return false;
-    const cs = getComputedStyle(m);
-    if (cs.display === 'none' || cs.visibility === 'hidden') return false;
-    if (m.naturalWidth < IMG_MIN && m.getBoundingClientRect().width < IMG_MIN) return false;
-    for (let n = m.parentElement; n && n !== card; n = n.parentElement) {
-        const cs = getComputedStyle(n);
-        if ((cs.overflowY === 'hidden' || cs.overflowY === 'auto') && n.scrollHeight > n.clientHeight + 8) return false;
-    }
-    return true;
-});
-
-// 当前回答：键盘选中优先（j/k 会真实 focus 卡片），否则取视口中线命中的卡片
-const currentCard = () => {
-    const focused = document.activeElement?.closest?.(CARD_SEL);
-    if (focused) return focused;
-    for (const el of document.elementsFromPoint(innerWidth / 2, innerHeight / 2)) {
-        const card = el.closest?.(CARD_SEL);
-        if (card) return card;
+// 查看器大图直接挂 body，只能按结构认：body 的直接子 img、z-index 高且占大半屏
+const viewerImg = () => {
+    for (const el of document.body.children) {
+        if (el.tagName !== 'IMG' || Number(getComputedStyle(el).zIndex) < 100) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width > innerWidth * VIEWER_SCORE && r.height > innerHeight * VIEWER_SCORE) return el;
     }
     return null;
 };
 
-// 全屏浮层（评论弹窗、图片查看器）打开时，方向键交回页面处理
-const overlayOpen = () => {
-    for (const el of document.body.children) {
-        const cs = getComputedStyle(el);
-        if (cs.position === 'fixed' && cs.pointerEvents !== 'none' && el.getBoundingClientRect().height > innerHeight * 0.5) return true;
-    }
-    return false;
+// 知乎把原图地址放在 data-original 上（src 是缩略图或占位 svg）
+const pickUrl = m => m.getAttribute('data-original') || m.currentSrc || m.src;
+
+// 卡片内的正文图（文档序）。不做视口过滤：查看器里能看到整张图，
+// 图在页面上是否被收起态裁切、是否滚到屏外都不影响翻图
+const cardImages = card => [...card.querySelectorAll('img')].filter(m => {
+    if (m.matches(IMG_UI_SEL) || m.closest('.Avatar,.RichContent-emoji,.RichText-emoji')) return false;
+    if (getComputedStyle(m).display === 'none') return false;
+    // 懒加载未完成的图 naturalWidth 为 0，退到知乎写在标签上的原图尺寸
+    const w = Math.max(m.naturalWidth, Number(m.getAttribute('data-rawwidth')) || 0);
+    const h = Math.max(m.naturalHeight, Number(m.getAttribute('data-rawheight')) || 0);
+    return w >= IMG_MIN || h >= IMG_MIN;
+});
+
+// 当前查看器对应哪组图：点开某张图时记下它所在的卡片与序号
+const viewerState = { list: [], idx: 0 };
+
+const rememberViewerSource = e => {
+    const m = e.target.closest?.('img');
+    if (!m || !m.closest(IMG_SCOPE)) return;
+    // 头像/表情/图标的查看器不属于正文图，不接管
+    if (m.matches(IMG_UI_SEL)) return;
+    const card = m.closest(CARD_SEL) || m.closest('.RichContent,.RichText,.Post-RichText') || document.body;
+    const list = cardImages(card);
+    const idx = list.indexOf(m);
+    viewerState.idx = idx < 0 ? 0 : idx;
+    viewerState.list = idx < 0 || list.length < 2 ? [] : list.map(pickUrl);
 };
 
-const jumpImage = dir => {
-    const card = currentCard();
-    if (!card) return false;
-    const imgs = cardImages(card);
-    if (imgs.length < 2) return false;
+// 翻图不改站点的 img：它把打开时那张图的尺寸写死在内联样式里，换 src 会被拉变形。
+// 我们只盖一层 UI；站点那层留着当「查看器是否打开」的信号，容器不吃指针事件，
+// 黑底点击与 Esc 都透给它自己关闭，MutationObserver 再收掉我们的层
+let overlayEl = null, stageEl = null, counterEl = null;
 
-    // 无状态定位：离视口中心最近的一张即「当前图」，手动滚动后也能接着走。
-    // 用视口坐标而不是文档坐标——滚动可能发生在内部容器上，scrollY 并不可靠
-    const mid = innerHeight / 2;
-    let cur = 0, best = Infinity;
-    imgs.forEach((m, i) => {
-        const r = m.getBoundingClientRect();
-        const d = Math.abs(r.top + r.height / 2 - mid);
-        if (d < best) { best = d; cur = i; }
+const ensureOverlay = () => {
+    if (overlayEl?.isConnected) return;
+    overlayEl = document.createElement('div');
+    overlayEl.className = 'zhihu-img-overlay';
+    overlayEl.innerHTML =
+        '<img class="zhihu-img-stage" alt="">' +
+        '<button class="zhihu-img-nav prev" type="button" aria-label="上一张"></button>' +
+        '<button class="zhihu-img-nav next" type="button" aria-label="下一张"></button>' +
+        '<button class="zhihu-img-close" type="button" aria-label="关闭"></button>' +
+        '<div class="zhihu-img-counter"></div>';
+    document.body.appendChild(overlayEl);
+    stageEl = overlayEl.querySelector('.zhihu-img-stage');
+    counterEl = overlayEl.querySelector('.zhihu-img-counter');
+    // 只有按钮接管点击；图片与黑底都不拦，交给站点遮罩
+    overlayEl.addEventListener('click', e => {
+        const btn = e.target.closest?.('button');
+        if (!btn) return;
+        if (btn.classList.contains('prev')) navViewer(-1);
+        else if (btn.classList.contains('next')) navViewer(1);
+        else closeViewer();
     });
+};
 
-    const next = imgs[cur + dir];
-    if (!next) return false;
+const showCounter = () => {
+    counterEl.textContent = `${viewerState.idx + 1} / ${viewerState.list.length}`;
+};
 
-    // 卡片处于 content-visibility 跳过态时 rect 是估算值，先让它真实渲染再定位
-    const revealed = [];
-    for (let n = next.parentElement; n && n !== document.body; n = n.parentElement) {
-        if (getComputedStyle(n).contentVisibility !== 'auto') continue;
-        n.style.setProperty('content-visibility', 'visible', 'important');
-        revealed.push(n);
+const showOverlay = url => {
+    ensureOverlay();
+    stageEl.src = url;
+    overlayEl.classList.add('show');
+    showCounter();
+};
+
+const hideOverlay = () => overlayEl?.classList.remove('show');
+
+// X / 窗口失焦时主动收层，并补一次站点关闭事件（正常路径下黑底点击与 Esc 会自己穿透过去）
+const closeViewer = () => {
+    if (!overlayEl?.classList.contains('show')) return;
+    hideOverlay();
+    for (const el of document.body.children) {
+        if (el === overlayEl || el.tagName === 'IMG') continue;
+        const cs = getComputedStyle(el);
+        if (Number(cs.zIndex) < 100) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < innerWidth * 0.8 || r.height < innerHeight * 0.8) continue;
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        break;
     }
-    if (revealed.length) next.getBoundingClientRect();   // 强制布局，拿到真实坐标
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+};
 
-    next.scrollIntoView({ block: 'center' });
-    if (revealed.length) setTimeout(() => revealed.forEach(n => n.style.removeProperty('content-visibility')), 600);
-    clearTimeout(imgHlTimer);
-    document.querySelectorAll('.' + IMG_HL).forEach(el => el.classList.remove(IMG_HL));
-    next.classList.add(IMG_HL);
-    imgHlTimer = setTimeout(() => next.classList.remove(IMG_HL), 1200);
+const onWindowBlur = () => closeViewer();
+
+const navViewer = dir => {
+    const v = viewerImg();
+    const n = viewerState.list.length;
+    if (!v || n < 2) return false;
+    viewerState.idx = (viewerState.idx + dir + n) % n;
+    showOverlay(viewerState.list[viewerState.idx]);
     return true;
 };
 
 const initImageKeys = () => {
+    document.addEventListener('click', rememberViewerSource, true);
     document.addEventListener('keydown', e => {
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
         if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-        if (!document.documentElement.hasAttribute('data-key-img')) return;
-        // 图片被屏蔽时没有可定位的图，方向键交回页面（滚动）处理
-        if (document.documentElement.hasAttribute('data-hide-img')) return;
-        // 输入框、视频与轮播组件内的方向键保持站点原生行为
-        if (e.target.closest?.('input,textarea,[contenteditable="true"],video,[class*="Video"],[class*="ZVideo"]')) return;
-        if (overlayOpen()) return;
-        if (jumpImage(e.key === 'ArrowRight' ? 1 : -1)) e.preventDefault();
+        if (e.target.closest?.('input,textarea,[contenteditable="true"]')) return;
+        if (navViewer(e.key === 'ArrowRight' ? 1 : -1)) e.preventDefault();
     }, true);
+    // 站点查看器一关（Esc / 点遮罩），叠在上面的 UI 也跟着收掉
+    const mo = new MutationObserver(() => { if (!viewerImg()) hideOverlay(); });
+    mo.observe(document.body, { childList: true });
+    observers.push(mo);
+    window.addEventListener('blur', onWindowBlur);
+    // 调试钩子：localStorage 里 zhihu-debug=1 才暴露
+    if (localStorage.getItem('zhihu-debug') === '1') window.__zhihuViewer = { viewerState, viewerImg, navViewer, cardImages };
 };
 
 // ==================== 发布时间 ====================
@@ -794,7 +844,8 @@ const markItem = item => {
 };
 
 // ==================== 图片占位 ====================
-// aspect-ratio 记下原图宽高比，否则占位块会被 1x1 替换物撑成正方形。
+// 记下原图宽高：占位条宽按它算（CSS 读 --ph-w），方向键切图也靠它做尺寸过滤
+// （占位态 naturalWidth 是那张 1x1 替换图的尺寸，不可用）。
 // 未加载的图挂一次性 load 回调补算；开关关闭时整段跳过
 const PH_ATTR = 'data-zhihu-ph';
 const PH_MIN = 60;      // 小于这个边长的多半是追踪像素/装饰小图，不参与屏蔽
@@ -807,7 +858,9 @@ const markImg = img => {
     const h = img.naturalHeight || Number(img.getAttribute('height'));
     if (!w || !h) { img.addEventListener('load', () => markImg(img), { once: true }); return; }
     if (w < PH_MIN || h < PH_MIN) return;
-    img.style.aspectRatio = `${w} / ${h}`;
+    img.setAttribute('data-ph-w', w);
+    img.setAttribute('data-ph-h', h);
+    img.style.setProperty('--ph-w', w + 'px');
     img.setAttribute(PH_ATTR, '1');
 };
 
@@ -942,6 +995,11 @@ const cleanup = () => {
     document.querySelector('.theme-switcher')?.remove();
     backTopBtn?.remove();
     backTopBtn = null;
+    overlayEl?.remove();
+    overlayEl = null;
+    stageEl = null;
+    counterEl = null;
+    window.removeEventListener('blur', onWindowBlur);
     if (_pushState) history.pushState = _pushState;
     if (_replaceState) history.replaceState = _replaceState;
 };
@@ -967,7 +1025,6 @@ const init = () => {
 
     // 创建主题菜单与滚动联动（顶栏隐藏 + 回到顶部）
     createThemeMenu();
-    syncToggleDeps();
     initScrollEffects();
     initImageKeys();
 
