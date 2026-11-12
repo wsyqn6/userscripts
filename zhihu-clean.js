@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎净化
 // @namespace    https://github.com/wsyqn6/userscripts
-// @version      3.8
-// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、大图查看器左右键/按钮翻图、未展开显示回答时间、长列表性能优化、图片屏蔽（紧凑占位条）、标签页标题低调化
+// @version      3.14
+// @description  宽屏布局与玻璃顶栏、7 种护眼主题、广告与商品卡屏蔽、导航精简、回到顶部、大图查看器左右键/按钮翻图、未展开显示回答时间、长列表性能优化、图片屏蔽（定宽占位胶囊，折叠与评论区同一套）、标签页标题低调化
 // @author       wsyqn6
 // @match        *://www.zhihu.com/*
 // @match        *://zhuanlan.zhihu.com/*
@@ -163,23 +163,82 @@ div.CommentContent,.CommentItemV2 .UserLink-link{color:var(--tx)!important}
 .zhihu-img-counter{position:absolute!important;left:50%!important;bottom:24px!important;transform:translateX(-50%)!important;z-index:1!important;padding:5px 12px!important;border-radius:14px!important;background:rgba(0,0,0,0.62)!important;color:#fff!important;font-size:12px!important;line-height:1.4!important;letter-spacing:0.04em!important;pointer-events:none!important}
 /* 屏蔽内容图片（可开关），折叠/展开/评论区共用，头像与表情由 IMG_UI 排除。
    占位画在 img 自身：img 是替换元素没有伪元素，但 content 能换掉内容，换成 1x1 透明图后
-   background 就露出来。做成 40px 高的横条，宽度取原图宽度（JS 写 --ph-w，最多 100%），
-   不再按原图宽高比铺开——竖长图原本能吃掉大半屏 */
+   background 就露出来。定宽胶囊 88x26：宽度不再跟原图走，多图时排成整齐一列，
+   去掉斜纹与描边，只留淡底和一个 14px 线描图符。窄容器（评论区）由 max-width 兜底 */
 html[data-hide-img] :is(${IMG_SCOPE}) img${IMG_UI}[data-zhihu-ph]{
     content:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E")!important;
-    width:min(100%,var(--ph-w,100%))!important;
+    box-sizing:border-box!important;
+    width:88px!important;
     max-width:100%!important;
-    height:40px!important;
+    height:26px!important;
     aspect-ratio:auto!important;
-    border-radius:8px!important;
+    border-radius:6px!important;
     vertical-align:middle!important;
-    background-color:rgba(128,128,128,0.06)!important;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b8b' stroke-width='1.4'%3E%3Crect x='3' y='5' width='18' height='14' rx='2.5'/%3E%3Ccircle cx='8.6' cy='10.2' r='1.4'/%3E%3Cpath d='M21 16.2l-5.2-5.2-6.1 6.1'/%3E%3C/svg%3E"),repeating-linear-gradient(135deg,rgba(128,128,128,0.1) 0 7px,transparent 7px 14px)!important;
-    background-repeat:no-repeat,repeat!important;
-    background-position:14px center,0 0!important;
-    background-size:18px 18px,auto!important;
-    box-shadow:inset 0 0 0 1px rgba(128,128,128,0.2)!important
+    background-color:rgba(128,128,128,0.08)!important;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b8b' stroke-width='1.6'%3E%3Crect x='3' y='5' width='18' height='14' rx='2.5'/%3E%3Ccircle cx='8.6' cy='10.2' r='1.4'/%3E%3Cpath d='M21 16.2l-5.2-5.2-6.1 6.1'/%3E%3C/svg%3E")!important;
+    background-repeat:no-repeat!important;
+    background-position:center!important;
+    background-size:14px 14px!important
 }
+/* 折叠卡缩略图的外壳：知乎把封面图塞进 .RichContent-cover（原图尺寸 190x105，
+   自带 ::after 2% 黑蒙层）。占位条只有 88x26，外壳却仍按原图尺寸撑开，
+   于是变成「占位条 + 一大块灰底」两层。这里把外壳收到占位条尺寸并去掉蒙层。
+   用 :has 限定只处理装占位图的外壳，视频封面等不受影响 */
+html[data-hide-img] .RichContent-cover:has(img[data-zhihu-ph]){
+    width:88px!important;
+    height:26px!important;
+    margin-right:12px!important;
+    border-radius:6px!important
+}
+html[data-hide-img] .RichContent-cover:has(img[data-zhihu-ph])::after{display:none!important}
+/* 内层与图片都带知乎原来的居中招数：inner 是 top:50% + translateY(-50%)，
+   img 是 absolute + 四向 inset + translate(-50%,-50%)。只改 position 不改
+   transform，translateY(-50%) 会照旧把 88x26 的胶囊往上提 13px，再被 cover 的
+   overflow:hidden 裁掉一半，看起来就是「偏上 + 变形」。这里把两者的定位与
+   transform 一起清掉，让占位条正好填满外壳 */
+html[data-hide-img] .RichContent-cover-inner:has(img[data-zhihu-ph]){
+    position:static!important;
+    inset:auto!important;
+    transform:none!important;
+    width:100%!important;
+    height:100%!important
+}
+html[data-hide-img] .RichContent-cover:has(img[data-zhihu-ph]) img[data-zhihu-ph]{
+    position:static!important;
+    inset:auto!important;
+    transform:none!important;
+    display:block!important;
+    margin:0!important
+}
+/* 折叠卡缩略图保持知乎原来的左右布局（封面 float:left，摘要绕排）。封面按
+   两行摘要的高度来做：摘要行高 25px 两行 50px，占位块给到 140x62，上下各留
+   约 8px，视觉上正好把两行夹住，也不用再做垂直居中。
+   操作栏 clear:both，避免比摘要高的封面把「赞同/评论」挤到右边 */
+html[data-hide-img] .RichContent.is-collapsed .RichContent-cover:has(img[data-zhihu-ph]){
+    width:140px!important;
+    height:62px!important
+}
+html[data-hide-img] .RichContent.is-collapsed .RichContent-cover:has(img[data-zhihu-ph]) .RichContent-cover-inner img[data-zhihu-ph]{
+    width:100%!important;
+    height:100%!important;
+    background-size:20px 20px!important
+}
+html[data-hide-img] .RichContent.is-collapsed:has(> .RichContent-cover img[data-zhihu-ph]) > .ContentItem-actions{
+    clear:both!important
+}
+/* 评论区的图片壳子同理：占位条外面可能还包着一层按原图尺寸定宽定高、
+   带淡底或蒙层的容器。只处理「直接子节点就是占位图」的壳子，
+   把它收回内容尺寸并去掉底色/蒙层，避免评论里出现双层灰块 */
+html[data-hide-img] :is(.CommentItemV2,.CommentContent) :is(a,figure,div):has(> img[data-zhihu-ph]){
+    width:auto!important;
+    height:auto!important;
+    aspect-ratio:auto!important;
+    padding:0!important;
+    background:none!important;
+    box-shadow:none!important
+}
+html[data-hide-img] :is(.CommentItemV2,.CommentContent) :has(> img[data-zhihu-ph])::before,
+html[data-hide-img] :is(.CommentItemV2,.CommentContent) :has(> img[data-zhihu-ph])::after{display:none!important}
 /* 首页文章卡屏蔽（可开关） */
 html[data-zhihu-home][data-hide-article] [data-zhihu-article]{display:none!important}
 /* 带货商品卡屏蔽（可开关）：知乎好物推荐/商业化组件，正常回答不会出现 */
@@ -844,23 +903,21 @@ const markItem = item => {
 };
 
 // ==================== 图片占位 ====================
-// 记下原图宽高：占位条宽按它算（CSS 读 --ph-w），方向键切图也靠它做尺寸过滤
-// （占位态 naturalWidth 是那张 1x1 替换图的尺寸，不可用）。
-// 未加载的图挂一次性 load 回调补算；开关关闭时整段跳过
+// 记下原图宽高：方向键切图靠它做尺寸过滤（占位态 naturalWidth 是那张 1x1 替换图的尺寸，
+// 不可用）。占位条本身定宽，不再读原图宽度，所以扫描当场就能判定，不必等图下载完。
+// 尺寸优先取知乎写在标签上的 data-rawwidth/rawheight，其次 width 属性，最后 naturalWidth；
+// 全都拿不到时挂一次性 load 兜底（自终止，不会循环）。开关关闭时整段跳过
 const PH_ATTR = 'data-zhihu-ph';
 const PH_MIN = 60;      // 小于这个边长的多半是追踪像素/装饰小图，不参与屏蔽
 
 const markImg = img => {
     if (img.hasAttribute(PH_ATTR) || img.matches(IMG_UI_SEL)) return;
-    // 只认图片自身的尺寸：读 getBoundingClientRect 会强制重排，全量扫描时开销明显；
-    // 未加载的图挂一次性 load 回调补算即可
-    const w = img.naturalWidth || Number(img.getAttribute('width'));
-    const h = img.naturalHeight || Number(img.getAttribute('height'));
+    const w = Number(img.getAttribute('data-rawwidth')) || Number(img.getAttribute('width')) || img.naturalWidth;
+    const h = Number(img.getAttribute('data-rawheight')) || Number(img.getAttribute('height')) || img.naturalHeight;
     if (!w || !h) { img.addEventListener('load', () => markImg(img), { once: true }); return; }
     if (w < PH_MIN || h < PH_MIN) return;
     img.setAttribute('data-ph-w', w);
     img.setAttribute('data-ph-h', h);
-    img.style.setProperty('--ph-w', w + 'px');
     img.setAttribute(PH_ATTR, '1');
 };
 
